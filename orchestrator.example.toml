@@ -2,11 +2,14 @@
 # orchestrator.toml is gitignored — never commit real identity/backend values.
 
 [identity]
+# vm_id/agent_token come from `POST /api/orchestrator/register` — paste the
+# response's values here before running `connect` or `service run`.
 vm_id = "dev-local"
-role = "operator" # "operator" | "guest"
+agent_token = ""
+role = "operator" # "operator" | "guest" — fallback for the `run` CLI path only
 
 [backend]
-# url = "https://pki-playground.example.com"  # unused in v0 — no networking code reads this yet
+url = "http://127.0.0.1:8000"  # required by `connect`/`service run`; unread by `run`
 
 [execution]
 # shell_binary = "pwsh"        # defaults to "powershell.exe" on Windows, "pwsh" elsewhere

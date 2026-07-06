@@ -25,17 +25,29 @@ pub struct OrchestratorConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentityConfig {
     /// Correlates this orchestrator instance to a VM record on the backend.
-    /// Placeholder for vmkit's missing guest-correlation mechanism: intended
-    /// to be baked into the config ISO alongside a future auth token and
-    /// echoed back on phone-home so the backend can match VM <-> orchestrator.
-    /// Unused by any networking code in v0 — there isn't any yet.
+    /// Issued by `POST /api/orchestrator/register` alongside `agent_token`.
+    /// Placeholder for vmkit's still-missing guest-correlation mechanism:
+    /// today a human copies both values here by hand before the agent
+    /// connects; once isokit/configgen can bake a config into the boot ISO,
+    /// this same field lands there automatically instead.
     pub vm_id: String,
+    /// The bearer token minted alongside `vm_id` by the backend's register
+    /// endpoint, presented on `phonehome::connect` to authenticate this
+    /// agent's WebSocket. Required only by the `connect`/`service run`
+    /// paths — the one-shot `run` CLI path never talks to a backend.
+    #[serde(default)]
+    pub agent_token: String,
+    /// Fallback role used only by the one-shot `run` CLI path, which has no
+    /// backend in the loop to supply one. The `connect` path ignores this —
+    /// the backend forwards the caller's real role with every dispatched
+    /// command instead (see `phonehome`), which is the authoritative gate.
     pub role: Role
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BackendConfig {
-    /// Unset in v0 — no networking code reads this yet.
+    /// Base URL of the EC-PKI-Playground backend, e.g. `http://host:8000`.
+    /// Required by the `connect`/`service run` paths; unread by `run`.
     pub url: Option<String>
 }
 
