@@ -1,5 +1,5 @@
 //! Integration tests exercising the full registry wiring (not just each
-//! handler's `execute` in isolation) for all 3 v0 commands. The load-bearing
+//! handler's `execute` in isolation) for every command. The load-bearing
 //! one is `guest_cannot_exec_arbitrary_end_to_end`: `VM_EXEC_ARBITRARY` must
 //! never be reachable by `Role::Guest`, end to end through `dispatch`.
 
@@ -64,6 +64,18 @@ fn guest_can_verify_cert() {
         )
         .unwrap();
     assert_eq!(result["chain_ok"], true);
+}
+
+#[test]
+fn guest_can_read_hostname() {
+    let registry = build_default_registry();
+    let shell = Arc::new(MockPowerShell::new());
+    shell.push_success("CA02\n");
+    let sink = NullProgressSink;
+    let result = registry
+        .dispatch("hostname.read", Role::Guest, HashMap::new(), &sink, shell)
+        .unwrap();
+    assert_eq!(result["hostname"], "CA02");
 }
 
 #[test]
