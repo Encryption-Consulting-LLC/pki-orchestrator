@@ -23,6 +23,10 @@ pub enum Capability {
     VmUpdate,
     #[serde(rename = "vm:power")]
     VmPower,
+    #[serde(rename = "vm:delete")]
+    VmDelete,
+    #[serde(rename = "vm:provision")]
+    VmProvision,
     #[serde(rename = "config:generate")]
     ConfigGenerate,
     #[serde(rename = "vm:exec-arbitrary")]
@@ -38,6 +42,8 @@ impl Capability {
         Capability::VmClone,
         Capability::VmUpdate,
         Capability::VmPower,
+        Capability::VmDelete,
+        Capability::VmProvision,
         Capability::ConfigGenerate,
         Capability::VmExecArbitrary,
         Capability::Deploy
@@ -51,6 +57,8 @@ impl Capability {
             Capability::VmClone => "vm:clone",
             Capability::VmUpdate => "vm:update",
             Capability::VmPower => "vm:power",
+            Capability::VmDelete => "vm:delete",
+            Capability::VmProvision => "vm:provision",
             Capability::ConfigGenerate => "config:generate",
             Capability::VmExecArbitrary => "vm:exec-arbitrary",
             Capability::Deploy => "deploy"
@@ -75,6 +83,8 @@ impl Role {
                 Capability::VmList,
                 Capability::VmRead,
                 Capability::VmClone,
+                Capability::VmDelete,
+                Capability::VmProvision,
                 Capability::Deploy
             ]
         }
@@ -107,6 +117,8 @@ mod tests {
             Capability::VmList,
             Capability::VmRead,
             Capability::VmClone,
+            Capability::VmDelete,
+            Capability::VmProvision,
             Capability::Deploy
         ];
         for cap in &allowed {
@@ -131,6 +143,8 @@ mod tests {
         assert_eq!(Capability::VmClone.wire_value(), "vm:clone");
         assert_eq!(Capability::VmUpdate.wire_value(), "vm:update");
         assert_eq!(Capability::VmPower.wire_value(), "vm:power");
+        assert_eq!(Capability::VmDelete.wire_value(), "vm:delete");
+        assert_eq!(Capability::VmProvision.wire_value(), "vm:provision");
         assert_eq!(Capability::ConfigGenerate.wire_value(), "config:generate");
         assert_eq!(
             Capability::VmExecArbitrary.wire_value(),

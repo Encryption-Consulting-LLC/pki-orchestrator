@@ -20,7 +20,10 @@ use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{
+    Message, client::IntoClientRequest, handshake::client::Request,
+    http::HeaderValue
+};
 use url::Url;
 
 use crate::{
@@ -104,10 +107,31 @@ fn connect_url(config: &OrchestratorConfig) -> Result<Url> {
         anyhow::anyhow!("backend.url has an unsupported scheme")
     })?;
     url.set_path("/api/orchestrator/connect");
-    url.query_pairs_mut()
-        .append_pair("vm_id", &config.identity.vm_id)
-        .append_pair("token", &config.identity.agent_token);
     Ok(url)
+}
+
+/// Build the WS upgrade request, carrying vm_id/token as headers rather than
+/// query params — the long-lived agent token stays out of the backend's and
+/// any reverse proxy's access logs. (The backend also accepts the browser-style
+/// `?vm_id=&token=` for the manual/dev path.)
+fn connect_request(config: &OrchestratorConfig) -> Result<Request> {
+    let url = connect_url(config)?;
+    let mut request = url
+        .as_str()
+        .into_client_request()
+        .context("building ws upgrade request")?;
+    let headers = request.headers_mut();
+    headers.insert(
+        "x-orchestrator-vm-id",
+        HeaderValue::from_str(&config.identity.vm_id)
+            .context("vm_id is not a valid header value")?
+    );
+    headers.insert(
+        "x-orchestrator-token",
+        HeaderValue::from_str(&config.identity.agent_token)
+            .context("agent_token is not a valid header value")?
+    );
+    Ok(request)
 }
 
 async fn connect_once(
@@ -115,8 +139,8 @@ async fn connect_once(
     registry: &Arc<CommandRegistry>,
     shell: &Arc<dyn PowerShellExecutor>
 ) -> Result<()> {
-    let url = connect_url(config)?;
-    let (stream, _) = tokio_tungstenite::connect_async(url.as_str())
+    let request = connect_request(config)?;
+    let (stream, _) = tokio_tungstenite::connect_async(request)
         .await
         .context("connecting to backend")?;
     tracing::info!(vm_id = %config.identity.vm_id, "connected to backend");
@@ -311,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn connect_url_builds_a_ws_url_with_vm_id_and_token() {
+    fn connect_request_carries_identity_in_headers_not_query() {
         let config = OrchestratorConfig {
             identity: crate::config::IdentityConfig {
                 vm_id: "vm-42".into(),
@@ -324,10 +348,18 @@ mod tests {
             execution: Default::default(),
             service: Default::default()
         };
-        let url = connect_url(&config).unwrap();
-        assert_eq!(url.scheme(), "ws");
-        assert_eq!(url.path(), "/api/orchestrator/connect");
-        assert!(url.query().unwrap().contains("vm_id=vm-42"));
-        assert!(url.query().unwrap().contains("token=secret"));
+        let request = connect_request(&config).unwrap();
+        assert_eq!(request.uri().scheme_str(), Some("ws"));
+        assert_eq!(request.uri().path(), "/api/orchestrator/connect");
+        // Token must not leak into the URL (the reason for header auth).
+        assert!(request.uri().query().unwrap_or("").is_empty());
+        assert_eq!(
+            request.headers().get("x-orchestrator-vm-id").unwrap(),
+            "vm-42"
+        );
+        assert_eq!(
+            request.headers().get("x-orchestrator-token").unwrap(),
+            "secret"
+        );
     }
 }
