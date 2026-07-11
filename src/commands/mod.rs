@@ -1,4 +1,5 @@
 mod ca;
+mod cert_store;
 mod cert_verify;
 mod dc;
 mod dns;
@@ -7,6 +8,7 @@ mod exec_arbitrary;
 mod hostname_read;
 mod hostname_rename;
 mod ip;
+mod template;
 pub(crate) mod util;
 
 use crate::registry::CommandRegistry;
@@ -32,5 +34,9 @@ pub fn build_default_registry() -> CommandRegistry {
     registry.register(Box::new(dc::DcVerify));
     registry.register(Box::new(domain::DomainVerify));
     registry.register(Box::new(dns::DnsSetClient));
+    registry.register(Box::new(dns::DnsCreateRecord));
+    registry.register(Box::new(cert_store::CertAddStore));
+    registry.register(Box::new(cert_store::CertDsPublish));
+    registry.register(Box::new(template::TemplateGrantAccess));
     registry
 }

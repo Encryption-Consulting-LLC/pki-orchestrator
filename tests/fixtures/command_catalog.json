@@ -2,13 +2,17 @@
   "ca.configure_cdp_aia": "vm:provision",
   "ca.install": "vm:provision",
   "ca.verify": "vm:read",
+  "cert.addstore": "vm:provision",
+  "cert.dspublish": "vm:provision",
   "cert.verify": "vm:read",
   "dc.verify": "vm:read",
+  "dns.create_record": "vm:provision",
   "dns.set_client": "vm:provision",
   "domain.verify": "vm:read",
   "hostname.read": "vm:read",
   "hostname.rename": "vm:update",
   "ip.read": "vm:read",
   "ip.write": "vm:update",
-  "powershell.exec_arbitrary": "vm:exec-arbitrary"
+  "powershell.exec_arbitrary": "vm:exec-arbitrary",
+  "template.grant_access": "vm:provision"
 }

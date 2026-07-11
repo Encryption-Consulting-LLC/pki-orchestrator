@@ -12,7 +12,9 @@ use serde_json::json;
 
 use crate::{
     authz::Capability,
-    commands::util::{invalid, param, require_success, required},
+    commands::util::{
+        invalid, param, require_success, required, valid_dns_name
+    },
     registry::{CommandContext, CommandError, CommandHandler}
 };
 
@@ -70,6 +72,64 @@ impl CommandHandler for DnsSetClient {
             "servers": parsed,
             "applied": output.stdout.trim(),
             "interface": if alias.is_empty() { serde_json::Value::Null } else { json!(alias) }
+        });
+        ctx.progress
+            .report(crate::report::OpRunState::done(result.clone()));
+        Ok(result)
+    }
+}
+
+/// `Add-DnsServerResourceRecordCName` — the lab's `pki` alias on DC01
+/// (`pki.<domain>` → the web host actually serving CertEnroll). Idempotent:
+/// an existing CNAME of the same name is replaced, so re-running a plan
+/// converges instead of erroring on the duplicate.
+pub struct DnsCreateRecord;
+
+impl CommandHandler for DnsCreateRecord {
+    fn name(&self) -> &'static str {
+        "dns.create_record"
+    }
+
+    fn required_capability(&self) -> Capability {
+        Capability::VmProvision
+    }
+
+    fn execute(
+        &self,
+        ctx: &CommandContext
+    ) -> Result<serde_json::Value, CommandError> {
+        let zone = required(ctx, "zone")?;
+        if !valid_dns_name(zone) {
+            return Err(invalid("zone", "must be a DNS zone name"));
+        }
+        let name = required(ctx, "name")?;
+        if !valid_dns_name(name) || name.contains('.') {
+            return Err(invalid("name", "must be a single DNS label"));
+        }
+        let target = required(ctx, "target")?;
+        if !valid_dns_name(target) {
+            return Err(invalid("target", "must be a DNS host name"));
+        }
+
+        ctx.progress.report(crate::report::OpRunState::running(
+            "creating DNS record",
+            30.0
+        ));
+
+        let script = "param([string]$Zone,[string]$Name,[string]$Target) \
+            $ErrorActionPreference = 'Stop'; \
+            $existing = Get-DnsServerResourceRecord -ZoneName $Zone -Name $Name -RRType CName -ErrorAction SilentlyContinue; \
+            if ($existing) { $existing | Remove-DnsServerResourceRecord -ZoneName $Zone -Force }; \
+            Add-DnsServerResourceRecordCName -ZoneName $Zone -Name $Name -HostNameAlias $Target; \
+            (Get-DnsServerResourceRecord -ZoneName $Zone -Name $Name -RRType CName).RecordData.HostNameAlias";
+        let args = [zone.to_string(), name.to_string(), target.to_string()];
+        let output = require_success(ctx.shell.run(script, &args)?)?;
+
+        let result = json!({
+            "zone": zone,
+            "name": name,
+            "target": target,
+            "applied": output.stdout.trim()
         });
         ctx.progress
             .report(crate::report::OpRunState::done(result.clone()));
@@ -151,5 +211,78 @@ mod tests {
         assert_eq!(result["servers"][1], "192.168.1.91");
         assert_eq!(result["applied"], "192.168.1.90,192.168.1.91");
         assert!(result["interface"].is_null());
+    }
+
+    #[test]
+    fn create_record_requires_all_params() {
+        let params = ctx_params(&[("zone", "EncryptionConsulting.com")]);
+        let sink = NullProgressSink;
+        let ctx = CommandContext {
+            params: &params,
+            progress: &sink,
+            shell: Arc::new(MockPowerShell::new())
+        };
+        assert!(matches!(
+            DnsCreateRecord.execute(&ctx),
+            Err(CommandError::MissingParam(_))
+        ));
+    }
+
+    #[test]
+    fn create_record_rejects_dotted_name() {
+        let params = ctx_params(&[
+            ("zone", "EncryptionConsulting.com"),
+            ("name", "pki.extra"),
+            ("target", "srv1.EncryptionConsulting.com.")
+        ]);
+        let sink = NullProgressSink;
+        let ctx = CommandContext {
+            params: &params,
+            progress: &sink,
+            shell: Arc::new(MockPowerShell::new())
+        };
+        assert!(matches!(
+            DnsCreateRecord.execute(&ctx),
+            Err(CommandError::InvalidParam { .. })
+        ));
+    }
+
+    #[test]
+    fn create_record_rejects_injection_shaped_target() {
+        let params = ctx_params(&[
+            ("zone", "EncryptionConsulting.com"),
+            ("name", "pki"),
+            ("target", "srv1; Remove-Item -Recurse C:\\")
+        ]);
+        let sink = NullProgressSink;
+        let ctx = CommandContext {
+            params: &params,
+            progress: &sink,
+            shell: Arc::new(MockPowerShell::new())
+        };
+        assert!(matches!(
+            DnsCreateRecord.execute(&ctx),
+            Err(CommandError::InvalidParam { .. })
+        ));
+    }
+
+    #[test]
+    fn create_record_echoes_the_applied_alias() {
+        let params = ctx_params(&[
+            ("zone", "EncryptionConsulting.com"),
+            ("name", "pki"),
+            ("target", "srv1.EncryptionConsulting.com.")
+        ]);
+        let sink = NullProgressSink;
+        let shell = Arc::new(MockPowerShell::new());
+        shell.push_success("srv1.EncryptionConsulting.com.");
+        let ctx = CommandContext {
+            params: &params,
+            progress: &sink,
+            shell
+        };
+        let result = DnsCreateRecord.execute(&ctx).unwrap();
+        assert_eq!(result["name"], "pki");
+        assert_eq!(result["applied"], "srv1.EncryptionConsulting.com.");
     }
 }
