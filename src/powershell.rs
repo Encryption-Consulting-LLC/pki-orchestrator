@@ -84,6 +84,14 @@ impl PowerShellExecutor for RealPowerShell {
         std::io::Write::write_all(&mut file, script.as_bytes())
             .map_err(|source| PowerShellError::TempScript { source })?;
 
+        // Close our write handle *before* invoking PowerShell. On Windows a
+        // still-open handle can stop `powershell.exe` from loading the `.ps1`
+        // (the read is denied against our open write handle), which surfaced
+        // as a silent non-zero exit on CI. `into_temp_path` flushes and closes
+        // the file while leaving it on disk; the returned `TempPath` deletes it
+        // when dropped at the end of this function — after `output()` has run.
+        let path = file.into_temp_path();
+
         // `-ExecutionPolicy Bypass` is required for `-File`: an unsigned
         // `.ps1` on disk is blocked under the default machine policy
         // (Restricted/RemoteSigned), which silently fails the script and is
@@ -97,7 +105,7 @@ impl PowerShellExecutor for RealPowerShell {
                 "Bypass",
                 "-File",
             ])
-            .arg(file.path())
+            .arg(&path)
             .args(args)
             .output()
             .map_err(|source| PowerShellError::Spawn {
