@@ -28,6 +28,8 @@ pub fn handle(action: ServiceAction) -> Result<()> {
     #[cfg(not(windows))]
     {
         let _ = action;
-        anyhow::bail!("service mode is Windows-only — use `run` for local dev/testing")
+        anyhow::bail!(
+            "service mode is Windows-only — use `run` for local dev/testing"
+        )
     }
 }
