@@ -15,7 +15,7 @@ use crate::{
     commands::build_default_registry,
     config::OrchestratorConfig,
     phonehome,
-    powershell::{PowerShellExecutor, RealPowerShell}
+    powershell::{PowerShellExecutor, RealPowerShell},
 };
 
 pub fn run_loop(config: &OrchestratorConfig) -> Result<()> {

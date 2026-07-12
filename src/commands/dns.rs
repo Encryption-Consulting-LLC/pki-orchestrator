@@ -13,9 +13,9 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{
-        invalid, param, require_success, required, valid_dns_name
+        invalid, param, require_success, required, valid_dns_name,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `Set-DnsClientServerAddress` — replace a NIC's DNS server list.
@@ -32,7 +32,7 @@ impl CommandHandler for DnsSetClient {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let servers = required(ctx, "servers")?;
         let parsed: Vec<&str> = servers
@@ -45,7 +45,7 @@ impl CommandHandler for DnsSetClient {
         {
             return Err(invalid(
                 "servers",
-                "must be a comma-separated list of dotted-quad IPv4 addresses"
+                "must be a comma-separated list of dotted-quad IPv4 addresses",
             ));
         }
         let servers = parsed.join(",");
@@ -55,7 +55,7 @@ impl CommandHandler for DnsSetClient {
 
         ctx.progress.report(crate::report::OpRunState::running(
             "configuring DNS client",
-            30.0
+            30.0,
         ));
 
         // Echo the applied list back (readback) so the caller verifies the
@@ -96,7 +96,7 @@ impl CommandHandler for DnsCreateRecord {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let zone = required(ctx, "zone")?;
         if !valid_dns_name(zone) {
@@ -113,7 +113,7 @@ impl CommandHandler for DnsCreateRecord {
 
         ctx.progress.report(crate::report::OpRunState::running(
             "creating DNS record",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$Zone,[string]$Name,[string]$Target) \
@@ -157,7 +157,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DnsSetClient.execute(&ctx),
@@ -172,7 +172,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DnsSetClient.execute(&ctx),
@@ -187,7 +187,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DnsSetClient.execute(&ctx),
@@ -204,7 +204,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DnsSetClient.execute(&ctx).unwrap();
         assert_eq!(result["servers"][0], "192.168.1.90");
@@ -220,7 +220,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DnsCreateRecord.execute(&ctx),
@@ -233,13 +233,13 @@ mod tests {
         let params = ctx_params(&[
             ("zone", "EncryptionConsulting.com"),
             ("name", "pki.extra"),
-            ("target", "srv1.EncryptionConsulting.com.")
+            ("target", "srv1.EncryptionConsulting.com."),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DnsCreateRecord.execute(&ctx),
@@ -252,13 +252,13 @@ mod tests {
         let params = ctx_params(&[
             ("zone", "EncryptionConsulting.com"),
             ("name", "pki"),
-            ("target", "srv1; Remove-Item -Recurse C:\\")
+            ("target", "srv1; Remove-Item -Recurse C:\\"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DnsCreateRecord.execute(&ctx),
@@ -271,7 +271,7 @@ mod tests {
         let params = ctx_params(&[
             ("zone", "EncryptionConsulting.com"),
             ("name", "pki"),
-            ("target", "srv1.EncryptionConsulting.com.")
+            ("target", "srv1.EncryptionConsulting.com."),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -279,7 +279,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DnsCreateRecord.execute(&ctx).unwrap();
         assert_eq!(result["name"], "pki");

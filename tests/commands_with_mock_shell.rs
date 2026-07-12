@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use pki_orchestrator::{
     authz::Role, commands::build_default_registry, powershell::MockPowerShell,
-    registry::DispatchError, report::NullProgressSink
+    registry::DispatchError, report::NullProgressSink,
 };
 
 fn params(pairs: &[(&str, &str)]) -> HashMap<String, String> {
@@ -28,7 +28,7 @@ fn operator_can_rename_hostname() {
         Role::Operator,
         params(&[("name", "CA02")]),
         &sink,
-        shell
+        shell,
     );
     assert!(result.is_ok());
 }
@@ -43,7 +43,7 @@ fn guest_cannot_rename_hostname() {
         Role::Guest,
         params(&[("name", "CA02")]),
         &sink,
-        shell
+        shell,
     );
     assert!(matches!(result, Err(DispatchError::Forbidden { .. })));
 }
@@ -60,7 +60,7 @@ fn guest_can_verify_cert() {
             Role::Guest,
             params(&[("path", "C:\\win11.cer")]),
             &sink,
-            shell
+            shell,
         )
         .unwrap();
     assert_eq!(result["chain_ok"], true);
@@ -102,7 +102,7 @@ fn guest_cannot_write_ip() {
         Role::Guest,
         params(&[("address", "10.0.0.5")]),
         &sink,
-        shell
+        shell,
     );
     assert!(matches!(result, Err(DispatchError::Forbidden { .. })));
 }
@@ -119,7 +119,7 @@ fn operator_can_write_ip() {
             Role::Operator,
             params(&[("address", "10.0.0.5"), ("prefixLength", "16")]),
             &sink,
-            shell
+            shell,
         )
         .unwrap();
     assert_eq!(result["prefix_length"], "16");
@@ -135,7 +135,7 @@ fn guest_cannot_exec_arbitrary_end_to_end() {
         Role::Guest,
         params(&[("script", "Remove-Item -Recurse C:\\")]),
         &sink,
-        shell
+        shell,
     );
     assert!(matches!(result, Err(DispatchError::Forbidden { .. })));
 }
@@ -152,7 +152,7 @@ fn operator_can_exec_arbitrary() {
             Role::Operator,
             params(&[("script", "echo hello")]),
             &sink,
-            shell
+            shell,
         )
         .unwrap();
     assert_eq!(result["stdout"], "hello");
@@ -168,7 +168,7 @@ fn unknown_command_is_rejected_regardless_of_role() {
         Role::Operator,
         HashMap::new(),
         &sink,
-        shell
+        shell,
     );
     assert!(matches!(result, Err(DispatchError::UnknownCommand(_))));
 }

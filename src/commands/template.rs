@@ -11,7 +11,7 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{invalid, require_success, required},
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// The AD extended-right GUID for certificate Enroll — fixed across forests.
@@ -43,26 +43,26 @@ impl CommandHandler for TemplateGrantAccess {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let template = required(ctx, "template")?;
         if !valid_template_cn(template) {
             return Err(invalid(
                 "template",
-                "must be a template CN of [A-Za-z0-9._-], max 64 chars"
+                "must be a template CN of [A-Za-z0-9._-], max 64 chars",
             ));
         }
         let computer = required(ctx, "computer")?;
         if !valid_computer_name(computer) {
             return Err(invalid(
                 "computer",
-                "must be a computer name of [A-Za-z0-9-], max 15 chars"
+                "must be a computer name of [A-Za-z0-9-], max 15 chars",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "granting template access",
-            30.0
+            30.0,
         ));
 
         // AddAccessRule is idempotent-enough for converging plans: re-adding
@@ -87,7 +87,7 @@ impl CommandHandler for TemplateGrantAccess {
         let args = [
             template.to_string(),
             computer.to_string(),
-            ENROLL_RIGHT_GUID.to_string()
+            ENROLL_RIGHT_GUID.to_string(),
         ];
         let output = require_success(ctx.shell.run(script, &args)?)?;
 
@@ -124,7 +124,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             TemplateGrantAccess.execute(&ctx),
@@ -136,13 +136,13 @@ mod tests {
     fn grant_rejects_injection_shaped_template() {
         let params = ctx_params(&[
             ("template", "OCSP,CN=elsewhere"),
-            ("computer", "SRV1")
+            ("computer", "SRV1"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             TemplateGrantAccess.execute(&ctx),
@@ -154,13 +154,13 @@ mod tests {
     fn grant_rejects_overlong_computer_name() {
         let params = ctx_params(&[
             ("template", "OCSPResponseSigning"),
-            ("computer", "a-name-way-past-netbios-limits")
+            ("computer", "a-name-way-past-netbios-limits"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             TemplateGrantAccess.execute(&ctx),
@@ -172,7 +172,7 @@ mod tests {
     fn grant_reports_the_acl_readback() {
         let params = ctx_params(&[
             ("template", "OCSPResponseSigning"),
-            ("computer", "SRV1")
+            ("computer", "SRV1"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -182,7 +182,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = TemplateGrantAccess.execute(&ctx).unwrap();
         assert_eq!(result["access"][0]["identity"], "ENCRYPTIONCONSU\\SRV1$");

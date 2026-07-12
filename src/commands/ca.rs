@@ -28,9 +28,9 @@ use crate::{
     authz::Capability,
     commands::util::{
         invalid, param, parse_json, require_success, required, valid_secret,
-        valid_username, valid_windows_path
+        valid_username, valid_windows_path,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 const CA_TYPES: &[&str] = &["Root", "Issuing"];
@@ -50,7 +50,7 @@ fn cng_provider(algorithm: &str) -> &'static str {
         "ECDSA" => "ECDSA_P384#Microsoft Software Key Storage Provider",
         "ML-DSA-87" => MLDSA_PROVIDER,
         // RSA (and any future default)
-        _ => "RSA#Microsoft Software Key Storage Provider"
+        _ => "RSA#Microsoft Software Key Storage Provider",
     }
 }
 
@@ -67,7 +67,7 @@ struct CryptoParams {
     algorithm: String,
     provider: &'static str,
     key_length: Option<String>,
-    hash_algorithm: Option<String>
+    hash_algorithm: Option<String>,
 }
 
 fn crypto_params(ctx: &CommandContext) -> Result<CryptoParams, CommandError> {
@@ -75,7 +75,7 @@ fn crypto_params(ctx: &CommandContext) -> Result<CryptoParams, CommandError> {
     if !KEY_ALGORITHMS.contains(&algorithm) {
         return Err(invalid(
             "keyAlgorithm",
-            "must be 'RSA', 'ECDSA' or 'ML-DSA-87'"
+            "must be 'RSA', 'ECDSA' or 'ML-DSA-87'",
         ));
     }
     let is_pqc = algorithm == "ML-DSA-87";
@@ -100,7 +100,7 @@ fn crypto_params(ctx: &CommandContext) -> Result<CryptoParams, CommandError> {
         if !HASH_ALGORITHMS.contains(&ha) {
             return Err(invalid(
                 "hashAlgorithm",
-                "must be 'SHA256', 'SHA384' or 'SHA512'"
+                "must be 'SHA256', 'SHA384' or 'SHA512'",
             ));
         }
         Some(ha.to_string())
@@ -110,7 +110,7 @@ fn crypto_params(ctx: &CommandContext) -> Result<CryptoParams, CommandError> {
         algorithm: algorithm.to_string(),
         provider: cng_provider(algorithm),
         key_length,
-        hash_algorithm
+        hash_algorithm,
     })
 }
 
@@ -123,11 +123,11 @@ impl CaInstall {
         ctx: &CommandContext,
         common_name: &str,
         crypto: &CryptoParams,
-        validity_years: &str
+        validity_years: &str,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress.report(crate::report::OpRunState::running(
             "installing root CA",
-            20.0
+            20.0,
         ));
 
         // CAPolicy.inf is built line-by-line (not a here-string) to sidestep
@@ -164,7 +164,7 @@ impl CaInstall {
             crypto.provider.to_string(),
             crypto.key_length.clone().unwrap_or_default(),
             crypto.hash_algorithm.clone().unwrap_or_default(),
-            validity_years.to_string()
+            validity_years.to_string(),
         ];
         require_success(ctx.shell.run(script, &args)?)?;
 
@@ -186,7 +186,7 @@ impl CaInstall {
         ctx: &CommandContext,
         common_name: &str,
         crypto: &CryptoParams,
-        validity_years: &str
+        validity_years: &str,
     ) -> Result<serde_json::Value, CommandError> {
         // CPS policy statement — optional; both parts validated when present.
         let cps_url = param(ctx, "cpsUrl").unwrap_or_default();
@@ -218,20 +218,20 @@ impl CaInstall {
         if !valid_username(username) {
             return Err(invalid(
                 "username",
-                "must be a plain, domain\\user or user@domain account name"
+                "must be a plain, domain\\user or user@domain account name",
             ));
         }
         let password = required(ctx, "password")?;
         if !valid_secret(password) {
             return Err(invalid(
                 "password",
-                "must be non-empty and not begin with '-'"
+                "must be non-empty and not begin with '-'",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "installing issuing CA",
-            20.0
+            20.0,
         ));
 
         // A subordinate install that writes a CSR deliberately finishes "not
@@ -279,7 +279,7 @@ impl CaInstall {
             cps_url.to_string(),
             csr_path.to_string(),
             username.to_string(),
-            password.to_string()
+            password.to_string(),
         ];
         require_success(ctx.shell.run(script, &args)?)?;
 
@@ -309,7 +309,7 @@ impl CommandHandler for CaInstall {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let ca_type = param(ctx, "caType").unwrap_or("Root");
         if !CA_TYPES.contains(&ca_type) {
@@ -320,7 +320,7 @@ impl CommandHandler for CaInstall {
         if !valid_common_name(common_name) {
             return Err(invalid(
                 "commonName",
-                "must be 1-64 chars of [A-Za-z0-9 ._-]"
+                "must be 1-64 chars of [A-Za-z0-9 ._-]",
             ));
         }
 
@@ -337,7 +337,7 @@ impl CommandHandler for CaInstall {
             _ => {
                 return Err(invalid(
                     "validityYears",
-                    "must be an integer in 1-50"
+                    "must be an integer in 1-50",
                 ));
             }
         }
@@ -367,7 +367,7 @@ impl CommandHandler for CaConfigureSettings {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let ds_config_dn = param(ctx, "dsConfigDn").unwrap_or_default();
         if !ds_config_dn.is_empty() {
@@ -379,7 +379,7 @@ impl CommandHandler for CaConfigureSettings {
             if !dn_ok {
                 return Err(invalid(
                     "dsConfigDn",
-                    "must be a CN=Configuration,DC=... distinguished name"
+                    "must be a CN=Configuration,DC=... distinguished name",
                 ));
             }
         }
@@ -401,7 +401,7 @@ impl CommandHandler for CaConfigureSettings {
                     _ => {
                         return Err(CommandError::InvalidParam {
                             name: key.into(),
-                            reason: format!("must be an integer in 0-{max}")
+                            reason: format!("must be an integer in 0-{max}"),
                         });
                     }
                 }
@@ -436,13 +436,13 @@ impl CommandHandler for CaConfigureSettings {
 
         if applied.is_empty() {
             return Err(CommandError::MissingParam(
-                "at least one CA setting".into()
+                "at least one CA setting".into(),
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "applying CA settings",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$DsConfigDn,[string]$CrlPeriodUnits,[string]$CrlPeriod,[string]$CrlDeltaPeriodUnits,[string]$CrlDeltaPeriod,[string]$CrlOverlapUnits,[string]$CrlOverlapPeriod,[string]$ValidityPeriodUnits,[string]$ValidityPeriod,[string]$AuditFilter) \
@@ -472,7 +472,7 @@ impl CommandHandler for CaConfigureSettings {
             overlap_period,
             validity_units,
             validity_period,
-            audit_filter
+            audit_filter,
         ];
         require_success(ctx.shell.run(script, &args)?)?;
 
@@ -526,7 +526,7 @@ impl CommandHandler for CaConfigureCdpAia {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let split = |raw: &str| -> Vec<String> {
             raw.split('\n')
@@ -539,7 +539,7 @@ impl CommandHandler for CaConfigureCdpAia {
         let cdp_entries = split(param(ctx, "cdpUrls").unwrap_or_default());
         if aia_entries.is_empty() && cdp_entries.is_empty() {
             return Err(CommandError::MissingParam(
-                "aiaUrls or cdpUrls".into()
+                "aiaUrls or cdpUrls".into(),
             ));
         }
         for (name, entries) in
@@ -552,14 +552,14 @@ impl CommandHandler for CaConfigureCdpAia {
                     name: name.into(),
                     reason: format!(
                         "entry '{bad}' is not a flag-prefixed publication URL"
-                    )
+                    ),
                 });
             }
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "configuring CDP/AIA",
-            40.0
+            40.0,
         ));
 
         // certutil's multi-entry syntax wants the entries joined by a
@@ -604,7 +604,7 @@ impl CommandHandler for CaPublishCrl {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress
             .report(crate::report::OpRunState::running("publishing CRL", 50.0));
@@ -637,7 +637,7 @@ impl CommandHandler for CaSignRequest {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let csr_path = required(ctx, "csrPath")?;
         if !valid_windows_path(csr_path) {
@@ -647,13 +647,13 @@ impl CommandHandler for CaSignRequest {
         if !valid_windows_path(cert_path) {
             return Err(invalid(
                 "certPath",
-                "must be an absolute Windows path"
+                "must be an absolute Windows path",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "signing certificate request",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$CsrPath,[string]$CertPath) \
@@ -678,7 +678,7 @@ impl CommandHandler for CaSignRequest {
         {
             return Err(invalid(
                 "csrPath",
-                "signing did not yield a numeric RequestId"
+                "signing did not yield a numeric RequestId",
             ));
         }
         let result = json!({
@@ -706,19 +706,19 @@ impl CommandHandler for CaInstallCert {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let cert_path = required(ctx, "certPath")?;
         if !valid_windows_path(cert_path) {
             return Err(invalid(
                 "certPath",
-                "must be an absolute Windows path"
+                "must be an absolute Windows path",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "installing CA certificate",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$CertPath) \
@@ -756,7 +756,7 @@ impl CommandHandler for CaPublishTemplate {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let raw = required(ctx, "templates")?;
         let templates: Vec<&str> = raw
@@ -773,13 +773,13 @@ impl CommandHandler for CaPublishTemplate {
         if !names_ok {
             return Err(invalid(
                 "templates",
-                "must be a comma-separated list of template CN names"
+                "must be a comma-separated list of template CN names",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "publishing templates",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$Templates) \
@@ -819,7 +819,7 @@ impl CommandHandler for CaVerify {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress
             .report(crate::report::OpRunState::running("pinging CA", 50.0));
@@ -866,7 +866,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -881,7 +881,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -893,13 +893,13 @@ mod tests {
     fn install_rejects_unknown_algorithm() {
         let params = ctx_params(&[
             ("commonName", "EC-Root-CA"),
-            ("keyAlgorithm", "Dilithium")
+            ("keyAlgorithm", "Dilithium"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -912,13 +912,13 @@ mod tests {
         let params = ctx_params(&[
             ("commonName", "EC-Root-CA"),
             ("keyAlgorithm", "RSA"),
-            ("keyLength", "1024")
+            ("keyLength", "1024"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -930,13 +930,13 @@ mod tests {
     fn install_rejects_out_of_range_validity() {
         let params = ctx_params(&[
             ("commonName", "EC-Root-CA"),
-            ("validityYears", "99")
+            ("validityYears", "99"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -948,7 +948,7 @@ mod tests {
     fn install_succeeds_and_reports_rsa_defaults() {
         let params = ctx_params(&[
             ("commonName", "EC-Root-CA"),
-            ("validityYears", "20")
+            ("validityYears", "20"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -956,7 +956,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaInstall.execute(&ctx).unwrap();
         assert_eq!(result["commonName"], "EC-Root-CA");
@@ -970,7 +970,7 @@ mod tests {
     fn install_pqc_omits_key_length_and_hash() {
         let params = ctx_params(&[
             ("commonName", "EC-PQC-Root"),
-            ("keyAlgorithm", "ML-DSA-87")
+            ("keyAlgorithm", "ML-DSA-87"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -978,7 +978,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaInstall.execute(&ctx).unwrap();
         assert_eq!(result["keyAlgorithm"], "ML-DSA-87");
@@ -990,7 +990,7 @@ mod tests {
     fn install_uses_ecdsa_provider_without_key_length() {
         let params = ctx_params(&[
             ("commonName", "EC-ECDSA-Root"),
-            ("keyAlgorithm", "ECDSA")
+            ("keyAlgorithm", "ECDSA"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -998,7 +998,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaInstall.execute(&ctx).unwrap();
         assert_eq!(result["keyAlgorithm"], "ECDSA");
@@ -1013,7 +1013,7 @@ mod tests {
             ("cpsUrl", "http://pki.EncryptionConsulting.com/cps.txt"),
             ("csrPath", "C:\\Transfer\\IssuingCA.req"),
             ("username", "ENCRYPTIONCONSU\\Administrator"),
-            ("password", "Sup3r-Secret-Pw!")
+            ("password", "Sup3r-Secret-Pw!"),
         ])
     }
 
@@ -1025,7 +1025,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -1042,7 +1042,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaInstall.execute(&ctx).unwrap();
         assert_eq!(result["caType"], "EnterpriseSubordinateCA");
@@ -1058,7 +1058,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::clone(&shell) as _
+            shell: Arc::clone(&shell) as _,
         };
         let result = CaInstall.execute(&ctx).unwrap();
         assert!(!result.to_string().contains("Sup3r-Secret-Pw!"));
@@ -1075,7 +1075,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -1091,7 +1091,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaInstall.execute(&ctx),
@@ -1106,7 +1106,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaConfigureSettings.execute(&ctx),
@@ -1118,13 +1118,13 @@ mod tests {
     fn configure_settings_rejects_bad_period() {
         let params = ctx_params(&[
             ("crlPeriodUnits", "52"),
-            ("crlPeriod", "Fortnights")
+            ("crlPeriod", "Fortnights"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaConfigureSettings.execute(&ctx),
@@ -1140,7 +1140,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaConfigureSettings.execute(&ctx),
@@ -1153,12 +1153,12 @@ mod tests {
         let params = ctx_params(&[
             (
                 "dsConfigDn",
-                "CN=Configuration,DC=EncryptionConsulting,DC=com"
+                "CN=Configuration,DC=EncryptionConsulting,DC=com",
             ),
             ("crlPeriodUnits", "52"),
             ("crlPeriod", "Weeks"),
             ("crlDeltaPeriodUnits", "0"),
-            ("auditFilter", "127")
+            ("auditFilter", "127"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -1166,7 +1166,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaConfigureSettings.execute(&ctx).unwrap();
         assert_eq!(result["applied"]["crlPeriodUnits"], "52");
@@ -1182,7 +1182,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaConfigureCdpAia.execute(&ctx),
@@ -1197,7 +1197,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaConfigureCdpAia.execute(&ctx),
@@ -1213,7 +1213,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaConfigureCdpAia.execute(&ctx),
@@ -1229,15 +1229,15 @@ mod tests {
                 "1:C:\\Windows\\system32\\CertSrv\\CertEnroll\\%1_%3%4.crt\n\
                  2:ldap:///CN=%7,CN=AIA,CN=Public Key Services,CN=Services,%6%11\n\
                  2:http://pki.EncryptionConsulting.com/CertEnroll/%1_%3%4.crt\n\
-                 32:http://srv1.EncryptionConsulting.com/ocsp"
+                 32:http://srv1.EncryptionConsulting.com/ocsp",
             ),
             (
                 "cdpUrls",
                 "65:C:\\Windows\\system32\\CertSrv\\CertEnroll\\%3%8%9.crl\n\
                  79:ldap:///CN=%7%8,CN=%2,CN=CDP,CN=Public Key Services,CN=Services,%6%10\n\
                  6:http://pki.EncryptionConsulting.com/CertEnroll/%3%8%9.crl\n\
-                 65:\\\\srv1.EncryptionConsulting.com\\CertEnroll\\%3%8%9.crl"
-            )
+                 65:\\\\srv1.EncryptionConsulting.com\\CertEnroll\\%3%8%9.crl",
+            ),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -1245,7 +1245,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaConfigureCdpAia.execute(&ctx).unwrap();
         assert_eq!(result["aia_urls"].as_array().unwrap().len(), 4);
@@ -1261,7 +1261,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaPublishCrl.execute(&ctx).unwrap();
         assert_eq!(result["published"], true);
@@ -1276,7 +1276,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             CaPublishCrl.execute(&ctx),
@@ -1288,7 +1288,7 @@ mod tests {
     fn sign_request_parses_the_request_id() {
         let params = ctx_params(&[
             ("csrPath", "C:\\Transfer\\IssuingCA.req"),
-            ("certPath", "C:\\Transfer\\IssuingCA.crt")
+            ("certPath", "C:\\Transfer\\IssuingCA.crt"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -1296,7 +1296,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaSignRequest.execute(&ctx).unwrap();
         assert_eq!(result["request_id"], "2");
@@ -1307,7 +1307,7 @@ mod tests {
     fn sign_request_rejects_non_numeric_request_id_output() {
         let params = ctx_params(&[
             ("csrPath", "C:\\Transfer\\IssuingCA.req"),
-            ("certPath", "C:\\Transfer\\IssuingCA.crt")
+            ("certPath", "C:\\Transfer\\IssuingCA.crt"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -1315,7 +1315,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             CaSignRequest.execute(&ctx),
@@ -1327,18 +1327,18 @@ mod tests {
     fn sign_request_propagates_submit_failure() {
         let params = ctx_params(&[
             ("csrPath", "C:\\Transfer\\IssuingCA.req"),
-            ("certPath", "C:\\Transfer\\IssuingCA.crt")
+            ("certPath", "C:\\Transfer\\IssuingCA.crt"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
         shell.push_failure(
             1,
-            "certreq -submit did not return a RequestId: denied"
+            "certreq -submit did not return a RequestId: denied",
         );
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             CaSignRequest.execute(&ctx),
@@ -1355,7 +1355,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaInstallCert.execute(&ctx).unwrap();
         assert_eq!(result["service"], "Running");
@@ -1369,7 +1369,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CaPublishTemplate.execute(&ctx),
@@ -1387,7 +1387,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaPublishTemplate.execute(&ctx).unwrap();
         assert_eq!(result["templates"][0], "OCSPResponseSigning");
@@ -1406,7 +1406,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaVerify.execute(&ctx).unwrap();
         assert_eq!(result["service"], "Running");
@@ -1424,7 +1424,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CaVerify.execute(&ctx).unwrap();
         assert_eq!(result["service"], "Stopped");

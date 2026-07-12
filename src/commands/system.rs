@@ -13,7 +13,7 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{invalid, param, require_success},
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `shutdown /r /t <delaySeconds>` — schedule a reboot and report done.
@@ -30,7 +30,7 @@ impl CommandHandler for SystemReboot {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let delay = param(ctx, "delaySeconds").unwrap_or("10");
         match delay.parse::<u32>() {
@@ -38,14 +38,14 @@ impl CommandHandler for SystemReboot {
             _ => {
                 return Err(invalid(
                     "delaySeconds",
-                    "must be an integer in 5-120"
+                    "must be an integer in 5-120",
                 ));
             }
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "scheduling reboot",
-            50.0
+            50.0,
         ));
 
         let script = "param([string]$Delay) \
@@ -84,7 +84,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = SystemReboot.execute(&ctx).unwrap();
         assert_eq!(result["rebooting"], true);
@@ -99,7 +99,7 @@ mod tests {
             let ctx = CommandContext {
                 params: &params,
                 progress: &sink,
-                shell: Arc::new(MockPowerShell::new())
+                shell: Arc::new(MockPowerShell::new()),
             };
             assert!(matches!(
                 SystemReboot.execute(&ctx),
@@ -117,7 +117,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             SystemReboot.execute(&ctx),

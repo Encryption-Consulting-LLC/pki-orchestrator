@@ -32,7 +32,7 @@ pub enum Capability {
     #[serde(rename = "vm:exec-arbitrary")]
     VmExecArbitrary,
     #[serde(rename = "deploy")]
-    Deploy
+    Deploy,
 }
 
 impl Capability {
@@ -46,7 +46,7 @@ impl Capability {
         Capability::VmProvision,
         Capability::ConfigGenerate,
         Capability::VmExecArbitrary,
-        Capability::Deploy
+        Capability::Deploy,
     ];
 
     /// The exact wire string used by the backend's `Capability.value`.
@@ -61,7 +61,7 @@ impl Capability {
             Capability::VmProvision => "vm:provision",
             Capability::ConfigGenerate => "config:generate",
             Capability::VmExecArbitrary => "vm:exec-arbitrary",
-            Capability::Deploy => "deploy"
+            Capability::Deploy => "deploy",
         }
     }
 }
@@ -71,7 +71,7 @@ pub enum Role {
     #[serde(rename = "operator")]
     Operator,
     #[serde(rename = "guest")]
-    Guest
+    Guest,
 }
 
 impl Role {
@@ -85,8 +85,8 @@ impl Role {
                 Capability::VmClone,
                 Capability::VmDelete,
                 Capability::VmProvision,
-                Capability::Deploy
-            ]
+                Capability::Deploy,
+            ],
         }
     }
 
@@ -119,7 +119,7 @@ mod tests {
             Capability::VmClone,
             Capability::VmDelete,
             Capability::VmProvision,
-            Capability::Deploy
+            Capability::Deploy,
         ];
         for cap in &allowed {
             assert!(Role::Guest.has(*cap));
@@ -129,7 +129,7 @@ mod tests {
             Capability::VmUpdate,
             Capability::VmPower,
             Capability::ConfigGenerate,
-            Capability::VmExecArbitrary
+            Capability::VmExecArbitrary,
         ];
         for cap in &forbidden {
             assert!(!Role::Guest.has(*cap));

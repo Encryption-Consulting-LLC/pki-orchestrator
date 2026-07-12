@@ -19,7 +19,7 @@ pub struct OrchestratorConfig {
     #[serde(default)]
     pub execution: ExecutionConfig,
     #[serde(default)]
-    pub service: ServiceConfig
+    pub service: ServiceConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,14 +41,14 @@ pub struct IdentityConfig {
     /// backend in the loop to supply one. The `connect` path ignores this —
     /// the backend forwards the caller's real role with every dispatched
     /// command instead (see `phonehome`), which is the authoritative gate.
-    pub role: Role
+    pub role: Role,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BackendConfig {
     /// Base URL of the EC-PKI-Playground backend, e.g. `http://host:8000`.
     /// Required by the `connect`/`service run` paths; unread by `run`.
-    pub url: Option<String>
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,14 +56,14 @@ pub struct ExecutionConfig {
     #[serde(default = "default_shell_binary")]
     pub shell_binary: String,
     #[serde(default = "default_script_timeout_secs")]
-    pub script_timeout_secs: u64
+    pub script_timeout_secs: u64,
 }
 
 impl Default for ExecutionConfig {
     fn default() -> Self {
         Self {
             shell_binary: default_shell_binary(),
-            script_timeout_secs: default_script_timeout_secs()
+            script_timeout_secs: default_script_timeout_secs(),
         }
     }
 }
@@ -83,13 +83,13 @@ fn default_script_timeout_secs() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceConfig {
     #[serde(default = "default_log_level")]
-    pub log_level: String
+    pub log_level: String,
 }
 
 impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
-            log_level: default_log_level()
+            log_level: default_log_level(),
         }
     }
 }
@@ -104,14 +104,14 @@ pub enum ConfigError {
     Read {
         path: PathBuf,
         #[source]
-        source: std::io::Error
+        source: std::io::Error,
     },
     #[error("failed to parse config file '{path}': {source}")]
     Parse {
         path: PathBuf,
         #[source]
-        source: toml::de::Error
-    }
+        source: toml::de::Error,
+    },
 }
 
 impl OrchestratorConfig {
@@ -119,12 +119,12 @@ impl OrchestratorConfig {
         let text = std::fs::read_to_string(path).map_err(|source| {
             ConfigError::Read {
                 path: path.to_path_buf(),
-                source
+                source,
             }
         })?;
         toml::from_str(&text).map_err(|source| ConfigError::Parse {
             path: path.to_path_buf(),
-            source
+            source,
         })
     }
 

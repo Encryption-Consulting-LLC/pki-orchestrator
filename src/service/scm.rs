@@ -10,11 +10,11 @@ use windows_service::{
     service::{
         ServiceAccess, ServiceControl, ServiceControlAccept,
         ServiceErrorControl, ServiceExitCode, ServiceInfo, ServiceStartType,
-        ServiceState, ServiceStatus, ServiceType
+        ServiceState, ServiceStatus, ServiceType,
     },
     service_control_handler::{self, ServiceControlHandlerResult},
     service_dispatcher,
-    service_manager::{ServiceManager, ServiceManagerAccess}
+    service_manager::{ServiceManager, ServiceManagerAccess},
 };
 
 const SERVICE_NAME: &str = "PkiOrchestrator";
@@ -23,7 +23,7 @@ const SERVICE_DISPLAY_NAME: &str = "PKI Orchestrator";
 pub fn install() -> Result<()> {
     let manager = ServiceManager::local_computer(
         None::<&str>,
-        ServiceManagerAccess::CREATE_SERVICE
+        ServiceManagerAccess::CREATE_SERVICE,
     )?;
     let exe_path =
         std::env::current_exe().context("resolving current exe path")?;
@@ -41,7 +41,7 @@ pub fn install() -> Result<()> {
         ],
         dependencies: vec![],
         account_name: None,
-        account_password: None
+        account_password: None,
     };
 
     manager.create_service(&info, ServiceAccess::empty())?;
@@ -51,7 +51,7 @@ pub fn install() -> Result<()> {
 pub fn uninstall() -> Result<()> {
     let manager = ServiceManager::local_computer(
         None::<&str>,
-        ServiceManagerAccess::CONNECT
+        ServiceManagerAccess::CONNECT,
     )?;
     let service = manager.open_service(SERVICE_NAME, ServiceAccess::DELETE)?;
     service.delete()?;
@@ -86,7 +86,7 @@ fn run_service() -> Result<()> {
                 ServiceControlHandlerResult::NoError
             }
             ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-            _ => ServiceControlHandlerResult::NotImplemented
+            _ => ServiceControlHandlerResult::NotImplemented,
         }
     };
 
@@ -101,7 +101,7 @@ fn run_service() -> Result<()> {
         exit_code: ServiceExitCode::Win32(0),
         checkpoint: 0,
         wait_hint: Duration::default(),
-        process_id: None
+        process_id: None,
     })?;
 
     let config = crate::config::OrchestratorConfig::load_default()
@@ -127,7 +127,7 @@ fn run_service() -> Result<()> {
         exit_code: ServiceExitCode::Win32(0),
         checkpoint: 0,
         wait_hint: Duration::default(),
-        process_id: None
+        process_id: None,
     })?;
 
     Ok(())

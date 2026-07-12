@@ -10,9 +10,9 @@ use crate::{
     authz::Capability,
     commands::util::{
         invalid, param, parse_json, require_success, required,
-        valid_windows_path
+        valid_windows_path,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 fn valid_template_cn(value: &str) -> bool {
@@ -38,20 +38,20 @@ impl CommandHandler for CertEnroll {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let template = required(ctx, "template")?;
         if !valid_template_cn(template) {
             return Err(invalid(
                 "template",
-                "must be a template CN of [A-Za-z0-9._-], max 64 chars"
+                "must be a template CN of [A-Za-z0-9._-], max 64 chars",
             ));
         }
         let export_path = param(ctx, "exportPath").unwrap_or_default();
         if !export_path.is_empty() && !valid_windows_path(export_path) {
             return Err(invalid(
                 "exportPath",
-                "must be an absolute Windows path"
+                "must be an absolute Windows path",
             ));
         }
         let refresh = param(ctx, "refreshPolicy").unwrap_or("false");
@@ -61,7 +61,7 @@ impl CommandHandler for CertEnroll {
 
         ctx.progress.report(crate::report::OpRunState::running(
             "enrolling certificate",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$Template,[string]$ExportPath,[string]$Refresh) \
@@ -78,7 +78,7 @@ impl CommandHandler for CertEnroll {
         let args = [
             template.to_string(),
             export_path.to_string(),
-            refresh.to_string()
+            refresh.to_string(),
         ];
         let output = require_success(ctx.shell.run(script, &args)?)?;
 
@@ -115,7 +115,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertEnroll.execute(&ctx),
@@ -128,7 +128,7 @@ mod tests {
         let params = ctx_params(&[
             ("template", "Workstation"),
             ("exportPath", "C:\\win11.cer"),
-            ("refreshPolicy", "true")
+            ("refreshPolicy", "true"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -138,7 +138,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CertEnroll.execute(&ctx).unwrap();
         assert_eq!(result["thumbprint"], "AB12CD34");
@@ -149,13 +149,13 @@ mod tests {
     fn enroll_rejects_bad_refresh_flag() {
         let params = ctx_params(&[
             ("template", "Workstation"),
-            ("refreshPolicy", "yes please")
+            ("refreshPolicy", "yes please"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertEnroll.execute(&ctx),
@@ -174,7 +174,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             CertEnroll.execute(&ctx),

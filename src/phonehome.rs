@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::{
     Message, client::IntoClientRequest, handshake::client::Request,
-    http::HeaderValue
+    http::HeaderValue,
 };
 use url::Url;
 
@@ -31,7 +31,7 @@ use crate::{
     config::OrchestratorConfig,
     powershell::PowerShellExecutor,
     registry::CommandRegistry,
-    report::{OpRunState, ProgressSink}
+    report::{OpRunState, ProgressSink},
 };
 
 /// One command dispatched by the backend, tagged with the job id its
@@ -43,7 +43,7 @@ pub struct InboundCommand {
     pub command: String,
     #[serde(default)]
     pub params: std::collections::HashMap<String, String>,
-    pub role: Role
+    pub role: Role,
 }
 
 /// One progress frame sent back to the backend, tagged with the job id it
@@ -52,19 +52,19 @@ pub struct InboundCommand {
 #[derive(Debug, Clone, Serialize)]
 pub struct OutboundProgress {
     pub job_id: String,
-    pub state: OpRunState
+    pub state: OpRunState,
 }
 
 struct TaggedProgressSink {
     job_id: String,
-    sender: mpsc::UnboundedSender<OutboundProgress>
+    sender: mpsc::UnboundedSender<OutboundProgress>,
 }
 
 impl ProgressSink for TaggedProgressSink {
     fn report(&self, state: OpRunState) {
         let _ = self.sender.send(OutboundProgress {
             job_id: self.job_id.clone(),
-            state
+            state,
         });
     }
 }
@@ -78,11 +78,11 @@ pub fn handle_command(
     registry: &CommandRegistry,
     shell: Arc<dyn PowerShellExecutor>,
     cmd: InboundCommand,
-    sender: &mpsc::UnboundedSender<OutboundProgress>
+    sender: &mpsc::UnboundedSender<OutboundProgress>,
 ) {
     let sink = TaggedProgressSink {
         job_id: cmd.job_id.clone(),
-        sender: sender.clone()
+        sender: sender.clone(),
     };
 
     if let Err(err) =
@@ -90,7 +90,7 @@ pub fn handle_command(
     {
         let _ = sender.send(OutboundProgress {
             job_id: cmd.job_id,
-            state: OpRunState::error(err.to_string())
+            state: OpRunState::error(err.to_string()),
         });
     }
 }
@@ -124,12 +124,12 @@ fn connect_request(config: &OrchestratorConfig) -> Result<Request> {
     headers.insert(
         "x-orchestrator-vm-id",
         HeaderValue::from_str(&config.identity.vm_id)
-            .context("vm_id is not a valid header value")?
+            .context("vm_id is not a valid header value")?,
     );
     headers.insert(
         "x-orchestrator-token",
         HeaderValue::from_str(&config.identity.agent_token)
-            .context("agent_token is not a valid header value")?
+            .context("agent_token is not a valid header value")?,
     );
     Ok(request)
 }
@@ -137,7 +137,7 @@ fn connect_request(config: &OrchestratorConfig) -> Result<Request> {
 async fn connect_once(
     config: &OrchestratorConfig,
     registry: &Arc<CommandRegistry>,
-    shell: &Arc<dyn PowerShellExecutor>
+    shell: &Arc<dyn PowerShellExecutor>,
 ) -> Result<()> {
     let request = connect_request(config)?;
     let (stream, _) = tokio_tungstenite::connect_async(request)
@@ -192,7 +192,7 @@ const RECONNECT_DELAYS_SECS: [u64; 5] = [1, 2, 5, 10, 30];
 pub async fn run_forever(
     config: &OrchestratorConfig,
     registry: Arc<CommandRegistry>,
-    shell: Arc<dyn PowerShellExecutor>
+    shell: Arc<dyn PowerShellExecutor>,
 ) -> Result<()> {
     connect_url(config)?; // fail fast on bad config, before the first attempt
 
@@ -205,7 +205,7 @@ pub async fn run_forever(
             Err(err) => tracing::warn!(
                 ?err,
                 "phone-home connection failed; reconnecting"
-            )
+            ),
         }
 
         let delay =
@@ -222,7 +222,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn recv_all(
-        rx: &mut mpsc::UnboundedReceiver<OutboundProgress>
+        rx: &mut mpsc::UnboundedReceiver<OutboundProgress>,
     ) -> Vec<OutboundProgress> {
         let mut out = Vec::new();
         while let Ok(msg) = rx.try_recv() {
@@ -245,9 +245,9 @@ mod tests {
                 job_id: "job-1".into(),
                 command: "powershell.exec_arbitrary".into(),
                 params: HashMap::from([("script".into(), "echo hi".into())]),
-                role: Role::Guest
+                role: Role::Guest,
             },
-            &tx
+            &tx,
         );
 
         let frames = recv_all(&mut rx);
@@ -261,7 +261,7 @@ mod tests {
         let registry = build_default_registry();
         let shell = Arc::new(MockPowerShell::new());
         shell.push_success(
-            "...\nCertUtil: -verify command completed successfully.\n"
+            "...\nCertUtil: -verify command completed successfully.\n",
         );
         let shell: Arc<dyn PowerShellExecutor> = shell;
         let (tx, mut rx) = mpsc::unbounded_channel();
@@ -274,11 +274,11 @@ mod tests {
                 command: "cert.verify".into(),
                 params: HashMap::from([(
                     "path".into(),
-                    "C:\\win11.cer".into()
+                    "C:\\win11.cer".into(),
                 )]),
-                role: Role::Guest
+                role: Role::Guest,
             },
-            &tx
+            &tx,
         );
 
         let frames = recv_all(&mut rx);
@@ -309,9 +309,9 @@ mod tests {
                 job_id: "job-3".into(),
                 command: "does.not_exist".into(),
                 params: HashMap::new(),
-                role: Role::Operator
+                role: Role::Operator,
             },
-            &tx
+            &tx,
         );
 
         let frames = recv_all(&mut rx);
@@ -325,11 +325,11 @@ mod tests {
             identity: crate::config::IdentityConfig {
                 vm_id: "dev".into(),
                 agent_token: "tok".into(),
-                role: Role::Operator
+                role: Role::Operator,
             },
             backend: crate::config::BackendConfig { url: None },
             execution: Default::default(),
-            service: Default::default()
+            service: Default::default(),
         };
         assert!(connect_url(&config).is_err());
     }
@@ -340,13 +340,13 @@ mod tests {
             identity: crate::config::IdentityConfig {
                 vm_id: "vm-42".into(),
                 agent_token: "secret".into(),
-                role: Role::Operator
+                role: Role::Operator,
             },
             backend: crate::config::BackendConfig {
-                url: Some("http://127.0.0.1:8000".into())
+                url: Some("http://127.0.0.1:8000".into()),
             },
             execution: Default::default(),
-            service: Default::default()
+            service: Default::default(),
         };
         let request = connect_request(&config).unwrap();
         assert_eq!(request.uri().scheme_str(), Some("ws"));

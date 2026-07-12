@@ -14,9 +14,9 @@ use crate::{
     authz::Capability,
     commands::util::{
         invalid, param, parse_json, require_success, required, valid_dns_name,
-        valid_secret
+        valid_secret,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `-ForestMode`/`-DomainMode` values the templates can produce: the 2016
@@ -40,13 +40,13 @@ impl CommandHandler for DcInstallForest {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let domain = required(ctx, "domainName")?;
         if !valid_dns_name(domain) || !domain.contains('.') {
             return Err(invalid(
                 "domainName",
-                "must be a dotted DNS domain name"
+                "must be a dotted DNS domain name",
             ));
         }
         let netbios = required(ctx, "netbiosName")?;
@@ -57,27 +57,27 @@ impl CommandHandler for DcInstallForest {
         if !netbios_ok {
             return Err(invalid(
                 "netbiosName",
-                "must be 1-15 chars of [A-Za-z0-9-]"
+                "must be 1-15 chars of [A-Za-z0-9-]",
             ));
         }
         let forest_mode = param(ctx, "forestMode").unwrap_or("WinThreshold");
         if !FOREST_MODES.contains(&forest_mode) {
             return Err(invalid(
                 "forestMode",
-                "must be 'Default', 'WinThreshold' or 'Win2025'"
+                "must be 'Default', 'WinThreshold' or 'Win2025'",
             ));
         }
         let dsrm_password = required(ctx, "safeModePassword")?;
         if !valid_secret(dsrm_password) {
             return Err(invalid(
                 "safeModePassword",
-                "must be non-empty and not begin with '-'"
+                "must be non-empty and not begin with '-'",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "installing AD DS forest",
-            10.0
+            10.0,
         ));
 
         let script = "param([string]$DomainName,[string]$Netbios,[string]$ForestMode,[string]$SafeModePassword) \
@@ -93,7 +93,7 @@ impl CommandHandler for DcInstallForest {
             domain.to_string(),
             netbios.to_string(),
             forest_mode.to_string(),
-            dsrm_password.to_string()
+            dsrm_password.to_string(),
         ];
         let output = require_success(ctx.shell.run(script, &args)?)?;
         drop(output);
@@ -124,11 +124,11 @@ impl CommandHandler for DcVerify {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress.report(crate::report::OpRunState::running(
             "verifying directory",
-            50.0
+            50.0,
         ));
 
         let script = "$ErrorActionPreference = 'Stop'; \
@@ -162,7 +162,7 @@ mod tests {
             ("domainName", "EncryptionConsulting.com"),
             ("netbiosName", "ENCRYPTIONCONSU"),
             ("forestMode", "WinThreshold"),
-            ("safeModePassword", "S0me-DSRM-secret!")
+            ("safeModePassword", "S0me-DSRM-secret!"),
         ])
     }
 
@@ -175,7 +175,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DcInstallForest.execute(&ctx).unwrap();
         assert_eq!(result["domain"], "EncryptionConsulting.com");
@@ -191,7 +191,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::clone(&shell) as _
+            shell: Arc::clone(&shell) as _,
         };
         let result = DcInstallForest.execute(&ctx).unwrap();
         // Not in the result JSON, and not interpolated into the script text
@@ -210,7 +210,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DcInstallForest.execute(&ctx),
@@ -226,7 +226,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DcInstallForest.execute(&ctx),
@@ -242,7 +242,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DcInstallForest.execute(&ctx),
@@ -259,7 +259,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DcInstallForest.execute(&ctx),
@@ -278,7 +278,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DcVerify.execute(&ctx).unwrap();
         assert_eq!(result["domain"]["DNSRoot"], "EncryptionConsulting.com");
@@ -298,7 +298,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             DcVerify.execute(&ctx),
@@ -315,7 +315,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DcVerify.execute(&ctx).unwrap();
         assert!(result["domain"].is_null());

@@ -13,9 +13,9 @@ use crate::{
     authz::Capability,
     commands::util::{
         invalid, parse_json, require_success, required, valid_dns_name,
-        valid_secret, valid_username
+        valid_secret, valid_username,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `Add-Computer -DomainName -Credential` (no `-Restart`). The domain-admin
@@ -33,27 +33,27 @@ impl CommandHandler for DomainJoin {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let domain = required(ctx, "domainName")?;
         if !valid_dns_name(domain) || !domain.contains('.') {
             return Err(invalid(
                 "domainName",
-                "must be a dotted DNS domain name"
+                "must be a dotted DNS domain name",
             ));
         }
         let username = required(ctx, "username")?;
         if !valid_username(username) {
             return Err(invalid(
                 "username",
-                "must be a plain, domain\\user or user@domain account name"
+                "must be a plain, domain\\user or user@domain account name",
             ));
         }
         let password = required(ctx, "password")?;
         if !valid_secret(password) {
             return Err(invalid(
                 "password",
-                "must be non-empty and not begin with '-'"
+                "must be non-empty and not begin with '-'",
             ));
         }
 
@@ -68,7 +68,7 @@ impl CommandHandler for DomainJoin {
         let args = [
             domain.to_string(),
             username.to_string(),
-            password.to_string()
+            password.to_string(),
         ];
         let output = require_success(ctx.shell.run(script, &args)?)?;
         drop(output);
@@ -97,11 +97,11 @@ impl CommandHandler for DomainVerify {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress.report(crate::report::OpRunState::running(
             "verifying membership",
-            50.0
+            50.0,
         ));
 
         let script = "$ErrorActionPreference = 'Stop'; \
@@ -137,7 +137,7 @@ mod tests {
         ctx_params(&[
             ("domainName", "EncryptionConsulting.com"),
             ("username", "ENCRYPTIONCONSU\\Administrator"),
-            ("password", "Sup3r-Secret-Pw!")
+            ("password", "Sup3r-Secret-Pw!"),
         ])
     }
 
@@ -150,7 +150,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DomainJoin.execute(&ctx).unwrap();
         assert_eq!(result["domain"], "EncryptionConsulting.com");
@@ -166,7 +166,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::clone(&shell) as _
+            shell: Arc::clone(&shell) as _,
         };
         let result = DomainJoin.execute(&ctx).unwrap();
         assert!(!result.to_string().contains("Sup3r-Secret-Pw!"));
@@ -184,7 +184,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DomainJoin.execute(&ctx),
@@ -200,7 +200,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             DomainJoin.execute(&ctx),
@@ -217,7 +217,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             DomainJoin.execute(&ctx),
@@ -236,7 +236,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DomainVerify.execute(&ctx).unwrap();
         assert_eq!(result["part_of_domain"], true);
@@ -254,7 +254,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DomainVerify.execute(&ctx).unwrap();
         assert_eq!(result["part_of_domain"], false);
@@ -270,7 +270,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = DomainVerify.execute(&ctx).unwrap();
         assert_eq!(result["part_of_domain"], false);

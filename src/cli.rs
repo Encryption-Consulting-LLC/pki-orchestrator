@@ -6,7 +6,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc
+    sync::Arc,
 };
 
 use anyhow::{Context, Result};
@@ -16,7 +16,7 @@ use crate::{
     commands::build_default_registry,
     config::OrchestratorConfig,
     powershell::{PowerShellExecutor, RealPowerShell},
-    report::{OpRunState, ProgressSink}
+    report::{OpRunState, ProgressSink},
 };
 
 #[derive(Parser)]
@@ -26,7 +26,7 @@ use crate::{
 )]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Command
+    pub command: Command,
 }
 
 #[derive(Subcommand)]
@@ -39,20 +39,20 @@ pub enum Command {
         command: String,
         /// key=value, repeatable.
         #[arg(long = "param")]
-        params: Vec<String>
+        params: Vec<String>,
     },
     /// Windows Service Control Manager integration (Windows-only).
     Service {
         #[command(subcommand)]
-        action: ServiceAction
+        action: ServiceAction,
     },
     /// Phone home to the backend and serve dispatched commands. Works on
     /// any OS — the dev/Linux-testable path for what `service run` does on
     /// Windows under the SCM.
     Connect {
         #[arg(long, default_value = "orchestrator.toml")]
-        config: PathBuf
-    }
+        config: PathBuf,
+    },
 }
 
 #[derive(Subcommand, Clone, Copy)]
@@ -62,7 +62,7 @@ pub enum ServiceAction {
     /// Remove this binary's registration from the SCM.
     Uninstall,
     /// Entry point the SCM actually launches (also runnable directly).
-    Run
+    Run,
 }
 
 struct StdoutProgressSink;
@@ -80,10 +80,10 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Run {
             config,
             command,
-            params
+            params,
         } => run_once(&config, &command, params),
         Command::Service { action } => crate::service::handle(action),
-        Command::Connect { config } => connect(&config)
+        Command::Connect { config } => connect(&config),
     }
 }
 
@@ -98,7 +98,7 @@ fn connect(config_path: &Path) -> Result<()> {
 fn run_once(
     config_path: &Path,
     command: &str,
-    raw_params: Vec<String>
+    raw_params: Vec<String>,
 ) -> Result<()> {
     let config =
         OrchestratorConfig::load_from_file(config_path).with_context(|| {
@@ -123,7 +123,7 @@ fn run_once(
         config.identity.role,
         params,
         &sink,
-        shell
+        shell,
     )?;
     println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())

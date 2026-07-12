@@ -13,7 +13,7 @@ use std::process::Command;
 pub struct PowerShellOutput {
     pub stdout: String,
     pub stderr: String,
-    pub exit_code: i32
+    pub exit_code: i32,
 }
 
 impl PowerShellOutput {
@@ -28,15 +28,15 @@ pub enum PowerShellError {
     Spawn {
         binary: String,
         #[source]
-        source: std::io::Error
+        source: std::io::Error,
     },
     #[error("failed to write temp script file: {source}")]
     TempScript {
         #[source]
-        source: std::io::Error
+        source: std::io::Error,
     },
     #[error("script exited with code {exit_code}: {stderr}")]
-    NonZeroExit { exit_code: i32, stderr: String }
+    NonZeroExit { exit_code: i32, stderr: String },
 }
 
 /// Executes a PowerShell script and returns its output. Implementations are
@@ -45,7 +45,7 @@ pub trait PowerShellExecutor: Send + Sync {
     fn run(
         &self,
         script: &str,
-        args: &[String]
+        args: &[String],
     ) -> Result<PowerShellOutput, PowerShellError>;
 }
 
@@ -53,13 +53,13 @@ pub trait PowerShellExecutor: Send + Sync {
 /// real cross-platform execution during Linux dev — see
 /// `ExecutionConfig::shell_binary`).
 pub struct RealPowerShell {
-    pub binary: String
+    pub binary: String,
 }
 
 impl RealPowerShell {
     pub fn new(binary: impl Into<String>) -> Self {
         Self {
-            binary: binary.into()
+            binary: binary.into(),
         }
     }
 }
@@ -68,7 +68,7 @@ impl PowerShellExecutor for RealPowerShell {
     fn run(
         &self,
         script: &str,
-        args: &[String]
+        args: &[String],
     ) -> Result<PowerShellOutput, PowerShellError> {
         // `-Command <script> <args>` never binds args to the script's
         // `param()` block: PowerShell joins everything after `-Command` into
@@ -91,13 +91,13 @@ impl PowerShellExecutor for RealPowerShell {
             .output()
             .map_err(|source| PowerShellError::Spawn {
                 binary: self.binary.clone(),
-                source
+                source,
             })?;
 
         Ok(PowerShellOutput {
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-            exit_code: output.status.code().unwrap_or(-1)
+            exit_code: output.status.code().unwrap_or(-1),
         })
     }
 }
@@ -107,9 +107,9 @@ impl PowerShellExecutor for RealPowerShell {
 #[derive(Default)]
 pub struct MockPowerShell {
     responses: std::sync::Mutex<
-        std::collections::VecDeque<Result<PowerShellOutput, PowerShellError>>
+        std::collections::VecDeque<Result<PowerShellOutput, PowerShellError>>,
     >,
-    pub calls: std::sync::Mutex<Vec<String>>
+    pub calls: std::sync::Mutex<Vec<String>>,
 }
 
 impl MockPowerShell {
@@ -119,7 +119,7 @@ impl MockPowerShell {
 
     pub fn push_response(
         &self,
-        response: Result<PowerShellOutput, PowerShellError>
+        response: Result<PowerShellOutput, PowerShellError>,
     ) {
         self.responses.lock().unwrap().push_back(response);
     }
@@ -128,7 +128,7 @@ impl MockPowerShell {
         self.push_response(Ok(PowerShellOutput {
             stdout: stdout.into(),
             stderr: String::new(),
-            exit_code: 0
+            exit_code: 0,
         }));
     }
 
@@ -136,7 +136,7 @@ impl MockPowerShell {
         self.push_response(Ok(PowerShellOutput {
             stdout: String::new(),
             stderr: stderr.into(),
-            exit_code
+            exit_code,
         }));
     }
 }
@@ -145,15 +145,15 @@ impl PowerShellExecutor for MockPowerShell {
     fn run(
         &self,
         script: &str,
-        _args: &[String]
+        _args: &[String],
     ) -> Result<PowerShellOutput, PowerShellError> {
         self.calls.lock().unwrap().push(script.to_string());
         self.responses.lock().unwrap().pop_front().unwrap_or(Ok(
             PowerShellOutput {
                 stdout: String::new(),
                 stderr: String::new(),
-                exit_code: 0
-            }
+                exit_code: 0,
+            },
         ))
     }
 }

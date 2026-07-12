@@ -5,7 +5,7 @@
 
 use crate::{
     powershell::{PowerShellError, PowerShellOutput},
-    registry::{CommandContext, CommandError}
+    registry::{CommandContext, CommandError},
 };
 
 /// Read one dispatch param as `&str`. The backend supplies these — for
@@ -18,7 +18,7 @@ pub fn param<'a>(ctx: &'a CommandContext, key: &str) -> Option<&'a str> {
 /// Like [`param`], but a missing key is a `MissingParam` error.
 pub fn required<'a>(
     ctx: &'a CommandContext,
-    key: &str
+    key: &str,
 ) -> Result<&'a str, CommandError> {
     param(ctx, key).ok_or_else(|| CommandError::MissingParam(key.into()))
 }
@@ -26,21 +26,21 @@ pub fn required<'a>(
 pub fn invalid(name: &str, reason: &str) -> CommandError {
     CommandError::InvalidParam {
         name: name.into(),
-        reason: reason.into()
+        reason: reason.into(),
     }
 }
 
 /// Pass a successful shell run through; map a non-zero exit to
 /// `CommandError::Shell` carrying the exit code and stderr.
 pub fn require_success(
-    output: PowerShellOutput
+    output: PowerShellOutput,
 ) -> Result<PowerShellOutput, CommandError> {
     if output.succeeded() {
         Ok(output)
     } else {
         Err(CommandError::Shell(PowerShellError::NonZeroExit {
             exit_code: output.exit_code,
-            stderr: output.stderr
+            stderr: output.stderr,
         }))
     }
 }

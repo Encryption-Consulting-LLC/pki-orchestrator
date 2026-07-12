@@ -12,7 +12,7 @@ pub enum OpStatus {
     Running,
     Done,
     Error,
-    Cancelled
+    Cancelled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ pub struct OpRunState {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<serde_json::Value>
+    pub result: Option<serde_json::Value>,
 }
 
 impl OpRunState {
@@ -35,7 +35,7 @@ impl OpRunState {
             percent: Some(percent),
             phase: Some(phase.into()),
             detail: None,
-            result: None
+            result: None,
         }
     }
 
@@ -45,7 +45,7 @@ impl OpRunState {
             percent: Some(100.0),
             phase: None,
             detail: None,
-            result: Some(result)
+            result: Some(result),
         }
     }
 
@@ -55,7 +55,7 @@ impl OpRunState {
             percent: None,
             phase: None,
             detail: Some(detail.into()),
-            result: None
+            result: None,
         }
     }
 }
@@ -78,7 +78,7 @@ impl ProgressSink for NullProgressSink {
 /// phase/percent sequencing.
 #[derive(Default)]
 pub struct RecordingProgressSink {
-    pub states: std::sync::Mutex<Vec<OpRunState>>
+    pub states: std::sync::Mutex<Vec<OpRunState>>,
 }
 
 impl ProgressSink for RecordingProgressSink {

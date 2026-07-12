@@ -2,7 +2,7 @@ use serde_json::json;
 
 use crate::{
     authz::Capability,
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `certutil -verify -urlfetch <path>` — the guide's own read-only chain +
@@ -22,7 +22,7 @@ impl CommandHandler for CertVerify {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let path = ctx
             .params
@@ -58,12 +58,12 @@ mod tests {
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
         shell.push_success(
-            "...\nCertUtil: -verify command completed successfully.\n"
+            "...\nCertUtil: -verify command completed successfully.\n",
         );
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CertVerify.execute(&ctx).unwrap();
         assert_eq!(result["chain_ok"], true);
@@ -79,7 +79,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CertVerify.execute(&ctx).unwrap();
         assert_eq!(result["chain_ok"], false);
@@ -92,7 +92,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertVerify.execute(&ctx),

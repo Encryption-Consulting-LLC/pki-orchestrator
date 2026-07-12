@@ -2,7 +2,7 @@ use serde_json::json;
 
 use crate::{
     authz::Capability,
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `Rename-Computer -NewName <name>` — the pattern used repeatedly across
@@ -22,7 +22,7 @@ impl CommandHandler for HostnameRename {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let new_name = ctx
             .params
@@ -39,7 +39,7 @@ impl CommandHandler for HostnameRename {
                 name: "name".into(),
                 reason:
                     "must be 1-15 chars of [A-Za-z0-9-] (NetBIOS name limit)"
-                        .into()
+                        .into(),
             });
         }
 
@@ -52,8 +52,8 @@ impl CommandHandler for HostnameRename {
             return Err(CommandError::Shell(
                 crate::powershell::PowerShellError::NonZeroExit {
                     exit_code: output.exit_code,
-                    stderr: output.stderr
-                }
+                    stderr: output.stderr,
+                },
             ));
         }
 
@@ -75,13 +75,13 @@ mod tests {
         let mut params = HashMap::new();
         params.insert(
             "name".to_string(),
-            "ThisNameIsWayTooLongForNetBIOS".to_string()
+            "ThisNameIsWayTooLongForNetBIOS".to_string(),
         );
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             HostnameRename.execute(&ctx),
@@ -99,7 +99,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = HostnameRename.execute(&ctx).unwrap();
         assert_eq!(result["renamed_to"], "CA02");
@@ -112,7 +112,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             HostnameRename.execute(&ctx),

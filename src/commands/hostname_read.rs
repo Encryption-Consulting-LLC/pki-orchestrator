@@ -2,7 +2,7 @@ use serde_json::json;
 
 use crate::{
     authz::Capability,
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `[System.Net.Dns]::GetHostName()` — the read half of `hostname.rename`,
@@ -22,7 +22,7 @@ impl CommandHandler for HostnameRead {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress
             .report(crate::report::OpRunState::running("reading", 50.0));
@@ -33,8 +33,8 @@ impl CommandHandler for HostnameRead {
             return Err(CommandError::Shell(
                 crate::powershell::PowerShellError::NonZeroExit {
                     exit_code: output.exit_code,
-                    stderr: output.stderr
-                }
+                    stderr: output.stderr,
+                },
             ));
         }
 
@@ -60,7 +60,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = HostnameRead.execute(&ctx).unwrap();
         assert_eq!(result["hostname"], "CA02");
@@ -75,7 +75,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             HostnameRead.execute(&ctx),

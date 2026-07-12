@@ -2,7 +2,7 @@ use std::{io::Write, path::Path};
 
 use pki_orchestrator::{
     authz::Role,
-    config::{ConfigError, OrchestratorConfig}
+    config::{ConfigError, OrchestratorConfig},
 };
 
 #[test]
@@ -51,7 +51,7 @@ fn execution_defaults_apply_when_section_omitted() {
 #[test]
 fn missing_file_is_a_read_error() {
     let result = OrchestratorConfig::load_from_file(Path::new(
-        "/nonexistent/orchestrator.toml"
+        "/nonexistent/orchestrator.toml",
     ));
     assert!(matches!(result, Err(ConfigError::Read { .. })));
 }

@@ -20,9 +20,9 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{
-        invalid, param, require_success, required, valid_windows_path
+        invalid, param, require_success, required, valid_windows_path,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 const SCOPES: &[&str] = &["share", "web", "all"];
@@ -46,7 +46,7 @@ impl CommandHandler for IisSetupCertEnroll {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let path = param(ctx, "path").unwrap_or("C:\\CertEnroll");
         if !valid_windows_path(path) {
@@ -65,7 +65,7 @@ impl CommandHandler for IisSetupCertEnroll {
             if !valid_netbios(n) {
                 return Err(invalid(
                     "netbiosName",
-                    "must be 1-15 chars of [A-Za-z0-9-]"
+                    "must be 1-15 chars of [A-Za-z0-9-]",
                 ));
             }
             n.to_string()
@@ -73,7 +73,7 @@ impl CommandHandler for IisSetupCertEnroll {
 
         ctx.progress.report(crate::report::OpRunState::running(
             "configuring CertEnroll hosting",
-            20.0
+            20.0,
         ));
 
         let script = "param([string]$Path,[string]$Netbios,[string]$Scope) \
@@ -132,7 +132,7 @@ mod tests {
             let ctx = CommandContext {
                 params: &params,
                 progress: &sink,
-                shell: Arc::new(MockPowerShell::new())
+                shell: Arc::new(MockPowerShell::new()),
             };
             assert!(matches!(
                 IisSetupCertEnroll.execute(&ctx),
@@ -150,7 +150,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = IisSetupCertEnroll.execute(&ctx).unwrap();
         assert_eq!(result["share_configured"], false);
@@ -162,13 +162,13 @@ mod tests {
     fn setup_rejects_unknown_scope() {
         let params = ctx_params(&[
             ("scope", "everything"),
-            ("netbiosName", "ENCRYPTIONCONSU")
+            ("netbiosName", "ENCRYPTIONCONSU"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             IisSetupCertEnroll.execute(&ctx),
@@ -180,7 +180,7 @@ mod tests {
     fn setup_all_reports_both_halves() {
         let params = ctx_params(&[
             ("netbiosName", "ENCRYPTIONCONSU"),
-            ("path", "C:\\CertEnroll")
+            ("path", "C:\\CertEnroll"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -188,7 +188,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = IisSetupCertEnroll.execute(&ctx).unwrap();
         assert_eq!(result["share_configured"], true);

@@ -2,7 +2,7 @@ use serde_json::json;
 
 use crate::{
     authz::Capability,
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// Runs an arbitrary PowerShell script verbatim. This is the reserved
@@ -24,7 +24,7 @@ impl CommandHandler for ExecArbitrary {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let script = ctx
             .params
@@ -39,8 +39,8 @@ impl CommandHandler for ExecArbitrary {
             return Err(CommandError::Shell(
                 crate::powershell::PowerShellError::NonZeroExit {
                     exit_code: output.exit_code,
-                    stderr: output.stderr
-                }
+                    stderr: output.stderr,
+                },
             ));
         }
 
@@ -68,7 +68,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = ExecArbitrary.execute(&ctx).unwrap();
         assert_eq!(result["stdout"], "Tuesday, July 7, 2026");
@@ -84,7 +84,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             ExecArbitrary.execute(&ctx),

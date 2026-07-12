@@ -2,8 +2,8 @@ use std::{
     collections::HashMap,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering}
-    }
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use pki_orchestrator::{
@@ -11,14 +11,14 @@ use pki_orchestrator::{
     powershell::MockPowerShell,
     registry::{
         CommandContext, CommandError, CommandHandler, CommandRegistry,
-        DispatchError
+        DispatchError,
     },
-    report::NullProgressSink
+    report::NullProgressSink,
 };
 
 struct SpyHandler {
     capability: Capability,
-    calls: Arc<AtomicUsize>
+    calls: Arc<AtomicUsize>,
 }
 
 impl CommandHandler for SpyHandler {
@@ -32,7 +32,7 @@ impl CommandHandler for SpyHandler {
 
     fn execute(
         &self,
-        _ctx: &CommandContext
+        _ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(serde_json::json!({ "ok": true }))
@@ -40,13 +40,13 @@ impl CommandHandler for SpyHandler {
 }
 
 fn registry_with_spy(
-    capability: Capability
+    capability: Capability,
 ) -> (CommandRegistry, Arc<AtomicUsize>) {
     let calls = Arc::new(AtomicUsize::new(0));
     let mut registry = CommandRegistry::new();
     registry.register(Box::new(SpyHandler {
         capability,
-        calls: calls.clone()
+        calls: calls.clone(),
     }));
     (registry, calls)
 }
@@ -64,7 +64,7 @@ fn forbidden_role_never_reaches_handler() {
         Role::Guest,
         HashMap::new(),
         &sink,
-        mock_shell()
+        mock_shell(),
     );
     assert!(matches!(result, Err(DispatchError::Forbidden { .. })));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
@@ -79,7 +79,7 @@ fn allowed_role_reaches_handler() {
         Role::Guest,
         HashMap::new(),
         &sink,
-        mock_shell()
+        mock_shell(),
     );
     assert!(result.is_ok());
     assert_eq!(calls.load(Ordering::SeqCst), 1);
@@ -94,7 +94,7 @@ fn unknown_command_is_reported() {
         Role::Operator,
         HashMap::new(),
         &sink,
-        mock_shell()
+        mock_shell(),
     );
     assert!(matches!(result, Err(DispatchError::UnknownCommand(_))));
 }
@@ -108,7 +108,7 @@ fn guest_specifically_cannot_reach_exec_arbitrary_gate() {
         Role::Guest,
         HashMap::new(),
         &sink,
-        mock_shell()
+        mock_shell(),
     );
     assert!(matches!(
         result,

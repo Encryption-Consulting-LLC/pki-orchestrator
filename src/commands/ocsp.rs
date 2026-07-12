@@ -20,7 +20,7 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{invalid, param, parse_json, require_success, required},
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `Install-WindowsFeature ADCS-Online-Cert` + `Install-AdcsOnlineResponder`.
@@ -37,11 +37,11 @@ impl CommandHandler for OcspInstall {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress.report(crate::report::OpRunState::running(
             "installing Online Responder",
-            20.0
+            20.0,
         ));
 
         let script = "$ErrorActionPreference = 'Stop'; \
@@ -94,7 +94,7 @@ fn valid_ca_config(value: &str) -> bool {
                     .chars()
                     .all(|c| c.is_ascii_alphanumeric() || " ._-".contains(c))
         }
-        None => false
+        None => false,
     }
 }
 
@@ -124,20 +124,20 @@ impl CommandHandler for OcspConfigureRevocation {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let name = required(ctx, "name")?;
         if !valid_config_name(name) {
             return Err(invalid(
                 "name",
-                "must be 1-64 chars of [A-Za-z0-9 ._-]"
+                "must be 1-64 chars of [A-Za-z0-9 ._-]",
             ));
         }
         let ca_config = required(ctx, "caConfig")?;
         if !valid_ca_config(ca_config) {
             return Err(invalid(
                 "caConfig",
-                "must be a 'host\\CA Common Name' config string"
+                "must be a 'host\\CA Common Name' config string",
             ));
         }
         let template = param(ctx, "template").unwrap_or("OCSPResponseSigning");
@@ -154,7 +154,7 @@ impl CommandHandler for OcspConfigureRevocation {
             _ => {
                 return Err(invalid(
                     "refreshMinutes",
-                    "must be an integer in 1-1440"
+                    "must be an integer in 1-1440",
                 ));
             }
         }
@@ -162,20 +162,20 @@ impl CommandHandler for OcspConfigureRevocation {
         if !valid_url_list(base_crl_urls) {
             return Err(invalid(
                 "baseCrlUrls",
-                "must be a comma-separated list of http(s) URLs"
+                "must be a comma-separated list of http(s) URLs",
             ));
         }
         let delta_crl_urls = param(ctx, "deltaCrlUrls").unwrap_or_default();
         if !delta_crl_urls.is_empty() && !valid_url_list(delta_crl_urls) {
             return Err(invalid(
                 "deltaCrlUrls",
-                "must be a comma-separated list of http(s) URLs"
+                "must be a comma-separated list of http(s) URLs",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "configuring revocation",
-            30.0
+            30.0,
         ));
 
         // Replace-then-create keeps the command idempotent; RefreshTimeOut
@@ -213,7 +213,7 @@ impl CommandHandler for OcspConfigureRevocation {
             base_crl_urls.to_string(),
             delta_crl_urls.to_string(),
             OCSP_SIGNING_FLAGS.to_string(),
-            CRL_PROVIDER_CLSID.to_string()
+            CRL_PROVIDER_CLSID.to_string(),
         ];
         require_success(ctx.shell.run(script, &args)?)?;
 
@@ -247,11 +247,11 @@ impl CommandHandler for OcspVerify {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress.report(crate::report::OpRunState::running(
             "verifying responder",
-            50.0
+            50.0,
         ));
 
         let script = "$ErrorActionPreference = 'Stop'; \
@@ -299,17 +299,17 @@ mod tests {
             ("name", "EC-Issuing-CA"),
             (
                 "caConfig",
-                "ca02.EncryptionConsulting.com\\EncryptionConsulting Issuing CA"
+                "ca02.EncryptionConsulting.com\\EncryptionConsulting Issuing CA",
             ),
             (
                 "baseCrlUrls",
-                "http://pki.EncryptionConsulting.com/CertEnroll/EncryptionConsulting%20Issuing%20CA.crl"
+                "http://pki.EncryptionConsulting.com/CertEnroll/EncryptionConsulting%20Issuing%20CA.crl",
             ),
             (
                 "deltaCrlUrls",
-                "http://pki.EncryptionConsulting.com/CertEnroll/EncryptionConsulting%20Issuing%20CA+.crl"
+                "http://pki.EncryptionConsulting.com/CertEnroll/EncryptionConsulting%20Issuing%20CA+.crl",
             ),
-            ("refreshMinutes", "15")
+            ("refreshMinutes", "15"),
         ])
     }
 
@@ -322,7 +322,7 @@ mod tests {
             let ctx = CommandContext {
                 params: &params,
                 progress: &sink,
-                shell: Arc::new(MockPowerShell::new())
+                shell: Arc::new(MockPowerShell::new()),
             };
             assert!(
                 matches!(
@@ -343,7 +343,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             OcspConfigureRevocation.execute(&ctx),
@@ -359,7 +359,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             OcspConfigureRevocation.execute(&ctx),
@@ -375,7 +375,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             OcspConfigureRevocation.execute(&ctx),
@@ -392,7 +392,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = OcspConfigureRevocation.execute(&ctx).unwrap();
         assert_eq!(result["name"], "EC-Issuing-CA");
@@ -411,7 +411,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = OcspVerify.execute(&ctx).unwrap();
         assert_eq!(result["configured"], true);
@@ -427,7 +427,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = OcspVerify.execute(&ctx).unwrap();
         assert_eq!(result["configured"], false);
@@ -442,7 +442,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = OcspInstall.execute(&ctx).unwrap();
         assert_eq!(result["installed"], true);
@@ -458,7 +458,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             OcspInstall.execute(&ctx),

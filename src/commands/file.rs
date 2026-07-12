@@ -16,9 +16,9 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{
-        invalid, parse_json, require_success, required, valid_windows_path
+        invalid, parse_json, require_success, required, valid_windows_path,
     },
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// 256 KiB decoded; the base64 param cap is the encoded equivalent (~4/3).
@@ -28,7 +28,7 @@ const RELAY_CAP_B64: usize = RELAY_CAP_BYTES / 3 * 4 + 4;
 const ALLOWED_PREFIXES: &[&str] = &[
     "C:\\Transfer\\",
     "C:\\Windows\\System32\\CertSrv\\CertEnroll\\",
-    "C:\\CertEnroll\\"
+    "C:\\CertEnroll\\",
 ];
 
 fn relay_path_ok(path: &str) -> bool {
@@ -44,7 +44,7 @@ fn invalid_relay_path() -> CommandError {
     invalid(
         "path",
         "must be an absolute path under C:\\Transfer\\, the CertSrv \
-         CertEnroll dir, or C:\\CertEnroll\\"
+         CertEnroll dir, or C:\\CertEnroll\\",
     )
 }
 
@@ -62,7 +62,7 @@ impl CommandHandler for FileRead {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let path = required(ctx, "path")?;
         if !relay_path_ok(path) {
@@ -113,7 +113,7 @@ impl CommandHandler for FileWrite {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let path = required(ctx, "path")?;
         if !relay_path_ok(path) {
@@ -173,14 +173,14 @@ mod tests {
             "C:\\Windows\\System32\\config\\SAM",
             "C:\\Users\\Administrator\\secret.txt",
             "C:\\Transfer\\..\\Windows\\evil.dll",
-            "D:\\Transfer\\x.crt"
+            "D:\\Transfer\\x.crt",
         ] {
             let params = ctx_params(&[("path", path)]);
             let sink = NullProgressSink;
             let ctx = CommandContext {
                 params: &params,
                 progress: &sink,
-                shell: Arc::new(MockPowerShell::new())
+                shell: Arc::new(MockPowerShell::new()),
             };
             assert!(
                 matches!(
@@ -197,7 +197,7 @@ mod tests {
         for path in [
             "C:\\Transfer\\EC-Root-CA.crt",
             "C:\\Windows\\System32\\CertSrv\\CertEnroll\\root.crl",
-            "C:\\CertEnroll\\issuing.crt"
+            "C:\\CertEnroll\\issuing.crt",
         ] {
             let params = ctx_params(&[("path", path)]);
             let sink = NullProgressSink;
@@ -208,7 +208,7 @@ mod tests {
             let ctx = CommandContext {
                 params: &params,
                 progress: &sink,
-                shell
+                shell,
             };
             let result = FileRead.execute(&ctx).unwrap();
             assert_eq!(result["contentB64"], "aGVsbG8=");
@@ -225,7 +225,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             FileRead.execute(&ctx),
@@ -237,13 +237,13 @@ mod tests {
     fn write_rejects_paths_outside_the_allowlist() {
         let params = ctx_params(&[
             ("path", "C:\\Windows\\System32\\evil.exe"),
-            ("contentB64", "aGVsbG8=")
+            ("contentB64", "aGVsbG8="),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             FileWrite.execute(&ctx),
@@ -255,13 +255,13 @@ mod tests {
     fn write_rejects_non_base64_content() {
         let params = ctx_params(&[
             ("path", "C:\\Transfer\\EC-Root-CA.crt"),
-            ("contentB64", "not base64!!")
+            ("contentB64", "not base64!!"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             FileWrite.execute(&ctx),
@@ -274,13 +274,13 @@ mod tests {
         let big = "A".repeat(RELAY_CAP_B64 + 1);
         let params = ctx_params(&[
             ("path", "C:\\Transfer\\big.bin"),
-            ("contentB64", &big)
+            ("contentB64", &big),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             FileWrite.execute(&ctx),
@@ -292,17 +292,17 @@ mod tests {
     fn write_reports_the_digest_readback() {
         let params = ctx_params(&[
             ("path", "C:\\Transfer\\EC-Root-CA.crt"),
-            ("contentB64", "aGVsbG8=")
+            ("contentB64", "aGVsbG8="),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
         shell.push_success(
-            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
         );
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = FileWrite.execute(&ctx).unwrap();
         assert_eq!(

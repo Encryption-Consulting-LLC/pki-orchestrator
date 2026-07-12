@@ -16,7 +16,7 @@ use serde_json::json;
 use crate::{
     authz::Capability,
     commands::util::{invalid, require_success, required, valid_windows_path},
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 const STORES: &[&str] = &["root", "ca"];
@@ -35,7 +35,7 @@ impl CommandHandler for CertAddStore {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let store = required(ctx, "store")?;
         if !STORES.contains(&store) {
@@ -48,7 +48,7 @@ impl CommandHandler for CertAddStore {
 
         ctx.progress.report(crate::report::OpRunState::running(
             "adding to store",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$Store,[string]$Path) \
@@ -91,7 +91,7 @@ impl CommandHandler for CertDsPublish {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let path = required(ctx, "path")?;
         if !valid_windows_path(path) {
@@ -101,13 +101,13 @@ impl CommandHandler for CertDsPublish {
         if !valid_ds_attribute(attribute) {
             return Err(invalid(
                 "attribute",
-                "must be a dspublish keyword (e.g. 'RootCA') or a CA machine name"
+                "must be a dspublish keyword (e.g. 'RootCA') or a CA machine name",
             ));
         }
 
         ctx.progress.report(crate::report::OpRunState::running(
             "publishing to AD",
-            30.0
+            30.0,
         ));
 
         let script = "param([string]$Path,[string]$Attribute) \
@@ -144,13 +144,13 @@ mod tests {
     fn addstore_rejects_unknown_store() {
         let params = ctx_params(&[
             ("store", "disallowed"),
-            ("path", "C:\\Transfer\\EC-Root-CA.crt")
+            ("path", "C:\\Transfer\\EC-Root-CA.crt"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertAddStore.execute(&ctx),
@@ -165,7 +165,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertAddStore.execute(&ctx),
@@ -177,7 +177,7 @@ mod tests {
     fn addstore_reports_thumbprint() {
         let params = ctx_params(&[
             ("store", "root"),
-            ("path", "C:\\Transfer\\EC-Root-CA.crt")
+            ("path", "C:\\Transfer\\EC-Root-CA.crt"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -185,7 +185,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = CertAddStore.execute(&ctx).unwrap();
         assert_eq!(result["thumbprint"], "AB12CD34EF56");
@@ -199,7 +199,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertDsPublish.execute(&ctx),
@@ -211,13 +211,13 @@ mod tests {
     fn dspublish_rejects_injection_shaped_attribute() {
         let params = ctx_params(&[
             ("path", "C:\\Transfer\\EC-Root-CA.crl"),
-            ("attribute", "CA01; format C:")
+            ("attribute", "CA01; format C:"),
         ]);
         let sink = NullProgressSink;
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             CertDsPublish.execute(&ctx),
@@ -230,7 +230,7 @@ mod tests {
         for attribute in ["RootCA", "guest-abc12-ca01"] {
             let params = ctx_params(&[
                 ("path", "C:\\Transfer\\EC-Root-CA.crt"),
-                ("attribute", attribute)
+                ("attribute", attribute),
             ]);
             let sink = NullProgressSink;
             let shell = Arc::new(MockPowerShell::new());
@@ -238,7 +238,7 @@ mod tests {
             let ctx = CommandContext {
                 params: &params,
                 progress: &sink,
-                shell
+                shell,
             };
             let result = CertDsPublish.execute(&ctx).unwrap();
             assert_eq!(result["attribute"], attribute);
@@ -249,7 +249,7 @@ mod tests {
     fn dspublish_propagates_certutil_failure() {
         let params = ctx_params(&[
             ("path", "C:\\Transfer\\EC-Root-CA.crt"),
-            ("attribute", "RootCA")
+            ("attribute", "RootCA"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -257,7 +257,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         assert!(matches!(
             CertDsPublish.execute(&ctx),

@@ -4,7 +4,7 @@ use serde_json::json;
 
 use crate::{
     authz::Capability,
-    registry::{CommandContext, CommandError, CommandHandler}
+    registry::{CommandContext, CommandError, CommandHandler},
 };
 
 /// `Get-NetIPAddress` — enumerate the machine's non-loopback IPv4 addresses.
@@ -23,7 +23,7 @@ impl CommandHandler for IpRead {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         ctx.progress
             .report(crate::report::OpRunState::running("reading", 50.0));
@@ -37,8 +37,8 @@ impl CommandHandler for IpRead {
             return Err(CommandError::Shell(
                 crate::powershell::PowerShellError::NonZeroExit {
                     exit_code: output.exit_code,
-                    stderr: output.stderr
-                }
+                    stderr: output.stderr,
+                },
             ));
         }
 
@@ -72,7 +72,7 @@ impl CommandHandler for IpWrite {
 
     fn execute(
         &self,
-        ctx: &CommandContext
+        ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
         let address = ctx
             .params
@@ -81,7 +81,7 @@ impl CommandHandler for IpWrite {
         if address.parse::<Ipv4Addr>().is_err() {
             return Err(CommandError::InvalidParam {
                 name: "address".into(),
-                reason: "must be a dotted-quad IPv4 address".into()
+                reason: "must be a dotted-quad IPv4 address".into(),
             });
         }
 
@@ -95,7 +95,7 @@ impl CommandHandler for IpWrite {
             _ => {
                 return Err(CommandError::InvalidParam {
                     name: "prefixLength".into(),
-                    reason: "must be an integer in 0-32".into()
+                    reason: "must be an integer in 0-32".into(),
                 });
             }
         }
@@ -104,7 +104,7 @@ impl CommandHandler for IpWrite {
         if !gateway.is_empty() && gateway.parse::<Ipv4Addr>().is_err() {
             return Err(CommandError::InvalidParam {
                 name: "gateway".into(),
-                reason: "must be a dotted-quad IPv4 address".into()
+                reason: "must be a dotted-quad IPv4 address".into(),
             });
         }
 
@@ -128,15 +128,15 @@ impl CommandHandler for IpWrite {
             address.clone(),
             prefix.to_string(),
             gateway.clone(),
-            alias.clone()
+            alias.clone(),
         ];
         let output = ctx.shell.run(script, &args)?;
         if !output.succeeded() {
             return Err(CommandError::Shell(
                 crate::powershell::PowerShellError::NonZeroExit {
                     exit_code: output.exit_code,
-                    stderr: output.stderr
-                }
+                    stderr: output.stderr,
+                },
             ));
         }
 
@@ -176,7 +176,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = IpRead.execute(&ctx).unwrap();
         assert_eq!(result["addresses"][0]["IPAddress"], "192.168.1.10");
@@ -191,7 +191,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = IpRead.execute(&ctx).unwrap();
         assert!(result["addresses"].is_null());
@@ -205,7 +205,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             IpWrite.execute(&ctx),
@@ -221,7 +221,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             IpWrite.execute(&ctx),
@@ -237,7 +237,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             IpWrite.execute(&ctx),
@@ -252,7 +252,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell: Arc::new(MockPowerShell::new())
+            shell: Arc::new(MockPowerShell::new()),
         };
         assert!(matches!(
             IpWrite.execute(&ctx),
@@ -269,7 +269,7 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell
+            shell,
         };
         let result = IpWrite.execute(&ctx).unwrap();
         assert_eq!(result["address"], "192.168.1.20");

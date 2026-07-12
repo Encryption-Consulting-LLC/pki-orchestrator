@@ -21,7 +21,7 @@ pub fn handle(action: ServiceAction) -> Result<()> {
         return match action {
             ServiceAction::Install => scm::install(),
             ServiceAction::Uninstall => scm::uninstall(),
-            ServiceAction::Run => scm::run()
+            ServiceAction::Run => scm::run(),
         };
     }
 

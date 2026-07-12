@@ -14,13 +14,13 @@ use serde_json::Value;
 use crate::{
     authz::{Capability, Role},
     powershell::{PowerShellError, PowerShellExecutor},
-    report::ProgressSink
+    report::ProgressSink,
 };
 
 pub struct CommandContext<'a> {
     pub params: &'a HashMap<String, String>,
     pub progress: &'a dyn ProgressSink,
-    pub shell: Arc<dyn PowerShellExecutor>
+    pub shell: Arc<dyn PowerShellExecutor>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -30,7 +30,7 @@ pub enum CommandError {
     #[error("invalid parameter '{name}': {reason}")]
     InvalidParam { name: String, reason: String },
     #[error("powershell execution failed: {0}")]
-    Shell(#[from] PowerShellError)
+    Shell(#[from] PowerShellError),
 }
 
 pub trait CommandHandler: Send + Sync {
@@ -49,15 +49,15 @@ pub enum DispatchError {
     Forbidden {
         command: String,
         role: Role,
-        required: Capability
+        required: Capability,
     },
     #[error(transparent)]
-    Command(#[from] CommandError)
+    Command(#[from] CommandError),
 }
 
 #[derive(Default)]
 pub struct CommandRegistry {
-    handlers: HashMap<&'static str, Box<dyn CommandHandler>>
+    handlers: HashMap<&'static str, Box<dyn CommandHandler>>,
 }
 
 impl CommandRegistry {
@@ -96,7 +96,7 @@ impl CommandRegistry {
         role: Role,
         params: HashMap<String, String>,
         progress: &dyn ProgressSink,
-        shell: Arc<dyn PowerShellExecutor>
+        shell: Arc<dyn PowerShellExecutor>,
     ) -> Result<Value, DispatchError> {
         let handler = self
             .handlers
@@ -108,14 +108,14 @@ impl CommandRegistry {
             return Err(DispatchError::Forbidden {
                 command: name.to_string(),
                 role,
-                required
+                required,
             });
         }
 
         let ctx = CommandContext {
             params: &params,
             progress,
-            shell
+            shell,
         };
         Ok(handler.execute(&ctx)?)
     }
