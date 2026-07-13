@@ -39,11 +39,19 @@ const KEY_LENGTHS: &[&str] = &["2048", "4096"];
 const HASH_ALGORITHMS: &[&str] = &["SHA256", "SHA384", "SHA512"];
 const PERIODS: &[&str] = &["Hours", "Days", "Weeks", "Months", "Years"];
 
-/// Post-quantum algorithm identifier as exposed by the Windows Server 2025 CNG
-/// software KSP. UNVERIFIED against a real golden image — the exact provider
-/// string may differ; treated as a canary (see the Phase F plan's risk list).
+/// Post-quantum provider string as exposed by the Windows Server 2025 CNG
+/// software KSP. The parameter set is delimited with a COLON (`ML-DSA:87`),
+/// not a hyphen — the AD CS "Cryptography for CA" list and the
+/// `Install-AdcsCertificationAuthority -CryptoProviderName` example both use
+/// `ML-DSA:87#Microsoft Software Key Storage Provider`. A hyphenated string is
+/// an unknown provider and makes SetCASetupProperty fail with 0x80070057.
+/// (Requires WS2025 + the 2026-05 security update KB5087539.)
 const MLDSA_PROVIDER: &str =
-    "ML-DSA-87#Microsoft Software Key Storage Provider";
+    "ML-DSA:87#Microsoft Software Key Storage Provider";
+
+/// ML-DSA-87's public-key size expressed in bits, which is what
+/// `Install-AdcsCertificationAuthority -KeyLength` wants: 2,592 bytes × 8.
+const MLDSA_KEY_LENGTH_BITS: &str = "20736";
 
 fn cng_provider(algorithm: &str) -> &'static str {
     match algorithm {
@@ -80,9 +88,15 @@ fn crypto_params(ctx: &CommandContext) -> Result<CryptoParams, CommandError> {
     }
     let is_pqc = algorithm == "ML-DSA-87";
 
-    // Key length applies to RSA only; ECDSA is fixed by the curve and
-    // ML-DSA-87 has a fixed parameter set.
-    let key_length = if algorithm == "RSA" {
+    // ML-DSA-87 is a fixed-parameter PQC scheme, but the cmdlet still expects
+    // BOTH -KeyLength and -HashAlgorithm — omitting them lets ADCS fall back to
+    // RSA-shaped defaults the ML-DSA provider rejects (0x80070057). KeyLength is
+    // the fixed public-key size in bits (20736) and the hash MUST be NoHash,
+    // because ML-DSA hashes the message internally rather than pre-hashing.
+    // For RSA the length is caller-chosen; ECDSA is curve-fixed (no length).
+    let key_length = if is_pqc {
+        Some(MLDSA_KEY_LENGTH_BITS.to_string())
+    } else if algorithm == "RSA" {
         let kl = param(ctx, "keyLength").unwrap_or("4096");
         if !KEY_LENGTHS.contains(&kl) {
             return Err(invalid("keyLength", "must be '2048' or '4096'"));
@@ -92,9 +106,8 @@ fn crypto_params(ctx: &CommandContext) -> Result<CryptoParams, CommandError> {
         None
     };
 
-    // Hash algorithm is meaningless for ML-DSA-87 (the scheme fixes it).
     let hash_algorithm = if is_pqc {
-        None
+        Some("NoHash".to_string())
     } else {
         let ha = param(ctx, "hashAlgorithm").unwrap_or("SHA256");
         if !HASH_ALGORITHMS.contains(&ha) {
@@ -967,10 +980,15 @@ mod tests {
     }
 
     #[test]
-    fn install_pqc_omits_key_length_and_hash() {
+    fn install_pqc_uses_fixed_key_length_and_nohash() {
+        // ML-DSA-87: the cmdlet needs the fixed 20736-bit public-key size and
+        // -HashAlgorithm NoHash; the CryptoProviderName must be colon-delimited.
         let params = ctx_params(&[
             ("commonName", "EC-PQC-Root"),
             ("keyAlgorithm", "ML-DSA-87"),
+            // Stale RSA-shaped values the backend might still carry — ignored.
+            ("keyLength", "2048"),
+            ("hashAlgorithm", "SHA256"),
         ]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
@@ -982,8 +1000,18 @@ mod tests {
         };
         let result = CaInstall.execute(&ctx).unwrap();
         assert_eq!(result["keyAlgorithm"], "ML-DSA-87");
-        assert!(result["keyLength"].is_null());
-        assert!(result["hashAlgorithm"].is_null());
+        assert_eq!(result["keyLength"], "20736");
+        assert_eq!(result["hashAlgorithm"], "NoHash");
+    }
+
+    #[test]
+    fn mldsa_provider_string_is_colon_delimited() {
+        // Regression: a hyphenated `ML-DSA-87#...` is an unknown CNG provider
+        // and fails Install-AdcsCertificationAuthority with 0x80070057.
+        assert_eq!(
+            cng_provider("ML-DSA-87"),
+            "ML-DSA:87#Microsoft Software Key Storage Provider"
+        );
     }
 
     #[test]
