@@ -18,7 +18,35 @@ use crate::{
     powershell::{PowerShellExecutor, RealPowerShell},
 };
 
+/// Acquire the machine-wide single-instance lock, held for the process
+/// lifetime (the OS releases it on any exit, clean or not). `share_mode(0)`
+/// means no other process can open the file while we hold it, so a second
+/// agent (e.g. the service plus a manual `connect` run) fails fast instead of
+/// dueling with this one over the backend connection (4409 evictions).
+#[cfg(windows)]
+fn acquire_instance_lock() -> Result<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let dir = std::path::Path::new(r"C:\ProgramData\PkiOrchestrator");
+    std::fs::create_dir_all(dir)
+        .context("creating the agent data directory")?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .share_mode(0)
+        .open(dir.join("agent.lock"))
+        .context(
+            "another pki-orchestrator instance is already running \
+             (could not acquire agent.lock)",
+        )
+}
+
+#[cfg(not(windows))]
+fn acquire_instance_lock() -> Result<()> {
+    Ok(()) // dev/CI-only path — the guard is Windows-specific
+}
+
 pub fn run_loop(config: &OrchestratorConfig) -> Result<()> {
+    acquire_instance_lock()?;
     let registry = Arc::new(build_default_registry());
     let shell: Arc<dyn PowerShellExecutor> =
         Arc::new(RealPowerShell::new(config.execution.shell_binary.clone()));

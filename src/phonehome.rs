@@ -220,11 +220,10 @@ async fn connect_once(
     // A frame the previous connection accepted but failed to write — deliver
     // it before anything else (frames queued in `rx` while disconnected
     // follow naturally via the select loop).
-    if let Some(msg) = pending.take() {
-        if !send_progress(&mut write, msg, pending).await {
+    if let Some(msg) = pending.take()
+        && !send_progress(&mut write, msg, pending).await {
             return Ok(ConnectionEnd::Normal);
         }
-    }
 
     let mut ping =
         tokio::time::interval(Duration::from_secs(KEEPALIVE_PING_SECS));
