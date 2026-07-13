@@ -8,11 +8,13 @@
 //! phone-home. The `shutdown /r /t <delay>` grace window is what lets the
 //! done-frame flush over the socket before the OS goes down.
 
-use serde_json::{Value, json};
+use std::path::PathBuf;
+
+use serde_json::json;
 
 use crate::{
     authz::Capability,
-    commands::util::{invalid, param, parse_json, require_success},
+    commands::util::{invalid, param, require_success},
     registry::{CommandContext, CommandError, CommandHandler},
 };
 
@@ -63,12 +65,64 @@ impl CommandHandler for SystemReboot {
 }
 
 /// One-shot boot snapshot: uptime plus whether the base image's
-/// `FirstBootFinalize` scheduled task still exists (and is currently
-/// running). The backend's boot-settle gate probes this to tell the
-/// intermediate firstboot boot (finalize reboot still pending) from the
-/// final settled boot, instead of inferring it from connection-stability
-/// heuristics. Read tier — reveals nothing a guest couldn't already see.
-pub struct SystemBootInfo;
+/// `FirstBootFinalize` scheduled task is still registered. The backend's
+/// boot-settle gate probes this to tell the intermediate firstboot boot
+/// (finalize reboot still pending) from the final settled boot, instead of
+/// inferring it from connection-stability heuristics. Read tier — reveals
+/// nothing a guest couldn't already see.
+///
+/// Computed natively, never via PowerShell: on exactly the boots this probe
+/// exists for (a fresh clone's post-setup servicing/ngen storm, pre-logon),
+/// `powershell.exe` cold-start plus the WMI-backed cmdlets block until a
+/// console logon — every shelled-out probe wedged and the settle gate hung.
+///
+/// * uptime: `GetTickCount64`, monotonic per boot — also immune to the NTP
+///   wall-clock steps that could make a `(Get-Date) - LastBootUpTime`
+///   difference go backwards and false-reset the backend's same-boot check.
+/// * finalize pending: the task is registered with no `-TaskPath`
+///   (FirstBoot.ps1), so its XML lives at `%SystemRoot%\System32\Tasks\
+///   FirstBootFinalize` and unregistration deletes the file — a plain
+///   filesystem existence check that cannot hang.
+pub struct SystemBootInfo {
+    /// Milliseconds since boot — injected for tests.
+    tick_ms: fn() -> u64,
+    /// The Task Scheduler XML root (`%SystemRoot%\System32\Tasks`).
+    tasks_dir: PathBuf,
+}
+
+impl Default for SystemBootInfo {
+    fn default() -> Self {
+        Self {
+            tick_ms: real_tick_ms,
+            tasks_dir: default_tasks_dir(),
+        }
+    }
+}
+
+#[cfg(windows)]
+fn real_tick_ms() -> u64 {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetTickCount64() -> u64;
+    }
+    unsafe { GetTickCount64() }
+}
+
+#[cfg(not(windows))]
+fn real_tick_ms() -> u64 {
+    // Dev builds: /proc/uptime's first field is seconds since boot.
+    std::fs::read_to_string("/proc/uptime")
+        .ok()
+        .and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok())
+        .map(|secs| (secs * 1000.0) as u64)
+        .unwrap_or(0)
+}
+
+fn default_tasks_dir() -> PathBuf {
+    let root = std::env::var("SystemRoot")
+        .unwrap_or_else(|_| r"C:\Windows".to_string());
+    PathBuf::from(root).join("System32").join("Tasks")
+}
 
 impl CommandHandler for SystemBootInfo {
     fn name(&self) -> &'static str {
@@ -88,24 +142,24 @@ impl CommandHandler for SystemBootInfo {
             50.0,
         ));
 
-        let script = "$ErrorActionPreference = 'Stop'; \
-            $os = Get-CimInstance Win32_OperatingSystem; \
-            $task = Get-ScheduledTask -TaskName 'FirstBootFinalize' -ErrorAction SilentlyContinue; \
-            [pscustomobject]@{ \
-                uptimeS = [int]((Get-Date) - $os.LastBootUpTime).TotalSeconds; \
-                finalizePending = ($null -ne $task); \
-                finalizeRunning = ($null -ne $task -and $task.State -eq 'Running') \
-            } | ConvertTo-Json -Compress";
-        let output = require_success(ctx.shell.run(script, &[])?)?;
+        let uptime_s = (self.tick_ms)() / 1000;
+        let task_file = self.tasks_dir.join("FirstBootFinalize");
+        let pending = task_file.exists();
 
-        let info = parse_json(&output.stdout);
+        // Whether the finalize task is mid-run isn't observable without the
+        // Schedule service (a COM/WMI query — the exact hang this rewrite
+        // removes). Report false always: the backend only used it to avoid
+        // kicking a mid-run finalize, and at force-reboot uptime a forced
+        // reboot converges to the same reboot the finalize would do anyway.
         let result = json!({
-            "uptimeS": info.get("uptimeS").cloned().unwrap_or(Value::Null),
-            "finalizePending":
-                info.get("finalizePending").cloned().unwrap_or(Value::Null),
-            "finalizeRunning":
-                info.get("finalizeRunning").cloned().unwrap_or(Value::Null),
-            "raw": output.stdout,
+            "uptimeS": uptime_s,
+            "finalizePending": pending,
+            "finalizeRunning": false,
+            "raw": format!(
+                "tick uptime {uptime_s}s; finalize task file {} {}",
+                task_file.display(),
+                if pending { "present" } else { "absent" },
+            ),
         });
         ctx.progress
             .report(crate::report::OpRunState::done(result.clone()));
@@ -176,79 +230,67 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn boot_info_parses_a_settled_boot() {
+    fn boot_info(tick_ms: fn() -> u64, tasks_dir: PathBuf) -> SystemBootInfo {
+        SystemBootInfo { tick_ms, tasks_dir }
+    }
+
+    /// Runs the handler with an empty context — no shell responses queued,
+    /// which doubles as the no-PowerShell proof: a shell call would pop the
+    /// (empty) mock queue's default, and `calls` below asserts zero.
+    fn run_boot_info(
+        handler: &SystemBootInfo,
+    ) -> (serde_json::Value, Arc<MockPowerShell>) {
         let params = HashMap::new();
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
-        shell.push_success(
-            r#"{"uptimeS":412,"finalizePending":false,"finalizeRunning":false}"#,
-        );
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell,
+            shell: shell.clone(),
         };
-        let result = SystemBootInfo.execute(&ctx).unwrap();
+        (handler.execute(&ctx).unwrap(), shell)
+    }
+
+    #[test]
+    fn boot_info_reports_a_settled_boot() {
+        let dir = tempfile::tempdir().unwrap();
+        let handler = boot_info(|| 412_000, dir.path().to_path_buf());
+        let (result, shell) = run_boot_info(&handler);
         assert_eq!(result["uptimeS"], 412);
         assert_eq!(result["finalizePending"], false);
         assert_eq!(result["finalizeRunning"], false);
+        assert!(shell.calls.lock().unwrap().is_empty());
     }
 
     #[test]
     fn boot_info_reports_finalize_pending() {
-        let params = HashMap::new();
-        let sink = NullProgressSink;
-        let shell = Arc::new(MockPowerShell::new());
-        shell.push_success(
-            r#"{"uptimeS":38,"finalizePending":true,"finalizeRunning":true}"#,
-        );
-        let ctx = CommandContext {
-            params: &params,
-            progress: &sink,
-            shell,
-        };
-        let result = SystemBootInfo.execute(&ctx).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("FirstBootFinalize"), "<Task/>")
+            .unwrap();
+        let handler = boot_info(|| 38_000, dir.path().to_path_buf());
+        let (result, _) = run_boot_info(&handler);
+        assert_eq!(result["uptimeS"], 38);
         assert_eq!(result["finalizePending"], true);
-        assert_eq!(result["finalizeRunning"], true);
+        // Not observable without the Schedule service — pinned to false.
+        assert_eq!(result["finalizeRunning"], false);
+        assert!(result["raw"].as_str().unwrap().contains("present"));
     }
 
     #[test]
-    fn boot_info_keeps_raw_when_unparseable() {
-        let params = HashMap::new();
-        let sink = NullProgressSink;
-        let shell = Arc::new(MockPowerShell::new());
-        shell.push_success("not json");
-        let ctx = CommandContext {
-            params: &params,
-            progress: &sink,
-            shell,
-        };
-        let result = SystemBootInfo.execute(&ctx).unwrap();
-        assert!(result["uptimeS"].is_null());
-        assert!(result["finalizePending"].is_null());
-        assert_eq!(result["raw"], "not json");
-    }
-
-    #[test]
-    fn boot_info_propagates_shell_failure() {
-        let params = HashMap::new();
-        let sink = NullProgressSink;
-        let shell = Arc::new(MockPowerShell::new());
-        shell.push_failure(1, "boom");
-        let ctx = CommandContext {
-            params: &params,
-            progress: &sink,
-            shell,
-        };
-        assert!(matches!(
-            SystemBootInfo.execute(&ctx),
-            Err(CommandError::Shell(_))
-        ));
+    fn boot_info_default_reads_the_real_system() {
+        // The Default wiring (real tick source + Tasks dir) must produce a
+        // plausible snapshot on any dev or CI machine: a positive uptime and
+        // a boolean pending flag (false everywhere but a mid-firstboot VM).
+        let (result, _) = run_boot_info(&SystemBootInfo::default());
+        assert!(result["uptimeS"].as_u64().unwrap() > 0);
+        assert!(result["finalizePending"].is_boolean());
     }
 
     #[test]
     fn boot_info_is_read_tier() {
-        assert_eq!(SystemBootInfo.required_capability(), Capability::VmRead);
+        assert_eq!(
+            SystemBootInfo::default().required_capability(),
+            Capability::VmRead
+        );
     }
 }

@@ -80,11 +80,10 @@ fn guest_can_read_hostname() {
 
 #[test]
 fn guest_can_read_boot_info() {
+    // boot_info is computed natively (tick count + task-file existence), so
+    // no shell responses are queued — the result reflects the host we run on.
     let registry = build_default_registry();
     let shell = Arc::new(MockPowerShell::new());
-    shell.push_success(
-        r#"{"uptimeS":412,"finalizePending":false,"finalizeRunning":false}"#,
-    );
     let sink = NullProgressSink;
     let result = registry
         .dispatch(
@@ -92,11 +91,13 @@ fn guest_can_read_boot_info() {
             Role::Guest,
             HashMap::new(),
             &sink,
-            shell,
+            shell.clone(),
         )
         .unwrap();
-    assert_eq!(result["uptimeS"], 412);
-    assert_eq!(result["finalizePending"], false);
+    assert!(result["uptimeS"].as_u64().unwrap() > 0);
+    assert!(result["finalizePending"].is_boolean());
+    assert_eq!(result["finalizeRunning"], false);
+    assert!(shell.calls.lock().unwrap().is_empty());
 }
 
 #[test]
