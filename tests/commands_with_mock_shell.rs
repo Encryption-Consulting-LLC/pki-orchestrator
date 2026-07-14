@@ -93,6 +93,21 @@ fn guest_can_verify_enterprise_pki() {
 }
 
 #[test]
+fn guest_can_read_system_identity() {
+    let registry = build_default_registry();
+    let shell = Arc::new(MockPowerShell::new());
+    shell.push_success(
+        r#"{"hostname":"DC01","operating_system":"Microsoft Windows Server 2025 Standard","server":true}"#,
+    );
+    let sink = NullProgressSink;
+    let result = registry
+        .dispatch("system.identity", Role::Guest, HashMap::new(), &sink, shell)
+        .unwrap();
+    assert_eq!(result["hostname"], "DC01");
+    assert_eq!(result["server"], true);
+}
+
+#[test]
 fn guest_can_read_hostname() {
     let registry = build_default_registry();
     let shell = Arc::new(MockPowerShell::new());

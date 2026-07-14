@@ -14,6 +14,7 @@ mod ip;
 mod ocsp;
 mod pki_verify;
 mod system;
+mod system_identity;
 mod template;
 pub(crate) mod util;
 
@@ -63,5 +64,6 @@ pub fn build_default_registry() -> CommandRegistry {
     registry.register(Box::new(ocsp::OcspVerify));
     registry.register(Box::new(cert_enroll::CertEnroll));
     registry.register(Box::new(pki_verify::PkiVerify));
+    registry.register(Box::new(system_identity::SystemIdentity));
     registry
 }
