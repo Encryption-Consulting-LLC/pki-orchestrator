@@ -603,7 +603,9 @@ impl CommandHandler for CaConfigureCdpAia {
     }
 }
 
-/// `certutil -crl` — publish a fresh CRL (and delta, where configured).
+/// `certutil -crl` — publish a fresh CRL (and delta, where configured), then
+/// identify the exact CA certificate/base CRL/delta CRL filenames published in
+/// CertEnroll so downstream relays use observed names rather than guesses.
 pub struct CaPublishCrl;
 
 impl CommandHandler for CaPublishCrl {
@@ -619,13 +621,91 @@ impl CommandHandler for CaPublishCrl {
         &self,
         ctx: &CommandContext,
     ) -> Result<serde_json::Value, CommandError> {
+        let cert_enroll_path = param(ctx, "certEnrollPath")
+            .unwrap_or("C:\\Windows\\System32\\CertSrv\\CertEnroll");
+        if !valid_windows_path(cert_enroll_path) {
+            return Err(invalid(
+                "certEnrollPath",
+                "must be an absolute Windows path",
+            ));
+        }
         ctx.progress
             .report(crate::report::OpRunState::running("publishing CRL", 50.0));
 
-        let script = "certutil -crl; exit $LASTEXITCODE";
-        let output = require_success(ctx.shell.run(script, &[])?)?;
+        let script = "param([string]$CertEnroll) \
+            $ErrorActionPreference = 'Stop'; \
+            $probeDir = Join-Path $env:TEMP ('pki-orchestrator-' + [guid]::NewGuid().ToString('N')); \
+            New-Item -ItemType Directory -Force -Path $probeDir | Out-Null; \
+            function Invoke-CertUtil([string[]]$Arguments) { \
+                & certutil @Arguments 2>&1 | Out-Null; \
+                if ($LASTEXITCODE -ne 0) { throw ('certutil ' + ($Arguments -join ' ') + ' failed') } \
+            }; \
+            function Find-Certificate([string]$ProbePath) { \
+                $thumbprint = (Get-PfxCertificate -FilePath $ProbePath).Thumbprint; \
+                $match = Get-ChildItem -LiteralPath $certEnroll -File -Filter '*.crt' | \
+                    Where-Object { \
+                        try { (Get-PfxCertificate -FilePath $_.FullName).Thumbprint -eq $thumbprint } \
+                        catch { $false } \
+                    } | Select-Object -First 1; \
+                if (-not $match) { throw 'current CA certificate is missing from CertEnroll' }; \
+                $match.Name \
+            }; \
+            function Find-Crl([string]$ProbePath) { \
+                $hash = (Get-FileHash -LiteralPath $ProbePath -Algorithm SHA256).Hash; \
+                $match = Get-ChildItem -LiteralPath $certEnroll -File -Filter '*.crl' | \
+                    Where-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash -eq $hash } | \
+                    Select-Object -First 1; \
+                if (-not $match) { throw 'current CRL is missing from CertEnroll' }; \
+                $match.Name \
+            }; \
+            try { \
+                Invoke-CertUtil @('-crl'); \
+                $certificateProbe = Join-Path $probeDir 'ca.crt'; \
+                $baseProbe = Join-Path $probeDir 'base.crl'; \
+                Invoke-CertUtil @('-f', '-ca.cert', $certificateProbe); \
+                Invoke-CertUtil @('-f', '-GetCRL', $baseProbe); \
+                $certificateFileName = Find-Certificate $certificateProbe; \
+                $baseCrlFileName = Find-Crl $baseProbe; \
+                $certificateContentB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $certEnroll $certificateFileName))); \
+                $baseCrlContentB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $certEnroll $baseCrlFileName))); \
+                $deltaCrlFileName = $null; \
+                $deltaCrlContentB64 = $null; \
+                $configurationKey = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\CertSvc\\Configuration'; \
+                $active = (Get-ItemProperty -LiteralPath $configurationKey).Active; \
+                $caKey = Join-Path $configurationKey $active; \
+                $deltaUnits = (Get-ItemProperty -LiteralPath $caKey -Name CRLDeltaPeriodUnits -ErrorAction SilentlyContinue).CRLDeltaPeriodUnits; \
+                if ([int]$deltaUnits -gt 0) { \
+                    $deltaProbe = Join-Path $probeDir 'delta.crl'; \
+                    Invoke-CertUtil @('-f', '-GetCRL', $deltaProbe, '0', 'delta'); \
+                    $deltaCrlFileName = Find-Crl $deltaProbe; \
+                    $deltaCrlContentB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $certEnroll $deltaCrlFileName))) \
+                }; \
+                [pscustomobject]@{ \
+                    certificateFileName = $certificateFileName; \
+                    baseCrlFileName = $baseCrlFileName; \
+                    deltaCrlFileName = $deltaCrlFileName; \
+                    certificateContentB64 = $certificateContentB64; \
+                    baseCrlContentB64 = $baseCrlContentB64; \
+                    deltaCrlContentB64 = $deltaCrlContentB64 \
+                } | ConvertTo-Json -Compress \
+            } finally { \
+                Remove-Item -LiteralPath $probeDir -Recurse -Force -ErrorAction SilentlyContinue \
+            }";
+        let output = require_success(
+            ctx.shell.run(script, &[cert_enroll_path.to_string()])?,
+        )?;
 
-        let result = json!({ "published": true, "raw": output.stdout });
+        let observed = parse_json(&output.stdout);
+        let result = json!({
+            "published": true,
+            "certificateFileName": observed["certificateFileName"],
+            "baseCrlFileName": observed["baseCrlFileName"],
+            "deltaCrlFileName": observed["deltaCrlFileName"],
+            "certificateContentB64": observed["certificateContentB64"],
+            "baseCrlContentB64": observed["baseCrlContentB64"],
+            "deltaCrlContentB64": observed["deltaCrlContentB64"],
+            "raw": output.stdout
+        });
         ctx.progress
             .report(crate::report::OpRunState::done(result.clone()));
         Ok(result)
@@ -1282,17 +1362,43 @@ mod tests {
 
     #[test]
     fn publish_crl_reports_published() {
-        let params = HashMap::new();
+        let params = ctx_params(&[("certEnrollPath", "D:\\PKI\\Published")]);
         let sink = NullProgressSink;
         let shell = Arc::new(MockPowerShell::new());
-        shell.push_success("CertUtil: -CRL command completed successfully.");
+        shell.push_success(
+            r#"{"certificateFileName":"CA01_Example Root CA.crt","baseCrlFileName":"Example Root CA.crl","deltaCrlFileName":null,"certificateContentB64":"Y2VydA==","baseCrlContentB64":"Y3Js"}"#,
+        );
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell,
+            shell: Arc::clone(&shell) as _,
         };
         let result = CaPublishCrl.execute(&ctx).unwrap();
         assert_eq!(result["published"], true);
+        assert_eq!(result["certificateFileName"], "CA01_Example Root CA.crt");
+        assert_eq!(result["baseCrlFileName"], "Example Root CA.crl");
+        assert!(result["deltaCrlFileName"].is_null());
+        assert_eq!(result["certificateContentB64"], "Y2VydA==");
+        assert_eq!(result["baseCrlContentB64"], "Y3Js");
+        let script = &shell.calls.lock().unwrap()[0];
+        assert!(script.starts_with("param([string]$CertEnroll)"));
+        assert!(!script.contains("Join-Path $env:SystemRoot 'System32"));
+    }
+
+    #[test]
+    fn publish_crl_rejects_relative_publication_directory() {
+        let params = ctx_params(&[("certEnrollPath", "Published")]);
+        let sink = NullProgressSink;
+        let ctx = CommandContext {
+            params: &params,
+            progress: &sink,
+            shell: Arc::new(MockPowerShell::new()),
+        };
+
+        assert!(matches!(
+            CaPublishCrl.execute(&ctx),
+            Err(CommandError::InvalidParam { name, .. }) if name == "certEnrollPath"
+        ));
     }
 
     #[test]

@@ -110,7 +110,9 @@ impl CommandHandler for DcInstallForest {
     }
 }
 
-/// `Get-ADDomain` — proves the forest is up and ADWS is answering.
+/// `Get-ADDomain -Server $env:COMPUTERNAME` — proves the local forest is up
+/// and the local ADWS endpoint is answering without depending on default DC
+/// discovery (or on the cloned guest's pre-promotion DNS client settings).
 pub struct DcVerify;
 
 impl CommandHandler for DcVerify {
@@ -133,7 +135,8 @@ impl CommandHandler for DcVerify {
 
         let script = "$ErrorActionPreference = 'Stop'; \
             Import-Module ActiveDirectory; \
-            Get-ADDomain | Select-Object DNSRoot, NetBIOSName, DomainMode | ConvertTo-Json";
+            Get-ADDomain -Server $env:COMPUTERNAME | \
+                Select-Object DNSRoot, NetBIOSName, DomainMode | ConvertTo-Json";
         let output = require_success(ctx.shell.run(script, &[])?)?;
 
         let domain = parse_json(&output.stdout);
@@ -278,11 +281,15 @@ mod tests {
         let ctx = CommandContext {
             params: &params,
             progress: &sink,
-            shell,
+            shell: Arc::clone(&shell) as _,
         };
         let result = DcVerify.execute(&ctx).unwrap();
         assert_eq!(result["domain"]["DNSRoot"], "EncryptionConsulting.com");
         assert_eq!(result["domain"]["NetBIOSName"], "ENCRYPTIONCONSU");
+        assert!(
+            shell.calls.lock().unwrap()[0]
+                .contains("Get-ADDomain -Server $env:COMPUTERNAME")
+        );
     }
 
     #[test]
