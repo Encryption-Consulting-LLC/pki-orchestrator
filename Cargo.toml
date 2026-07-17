@@ -1,6 +1,6 @@
 [package]
 name = "pki-orchestrator"
-version = "0.1.1"
+version = "0.1.6"
 edition = "2024"
 description = "VM-resident PKI orchestrator agent"
 
