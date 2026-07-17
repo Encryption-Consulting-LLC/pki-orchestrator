@@ -33,7 +33,7 @@ use crate::{
     config::OrchestratorConfig,
     powershell::PowerShellExecutor,
     registry::CommandRegistry,
-    report::{OpRunState, ProgressSink},
+    report::{OpRunState, OpStatus, ProgressSink},
 };
 
 /// One command dispatched by the backend, tagged with the job id its
@@ -189,7 +189,29 @@ where
     let Ok(text) = serde_json::to_string(&msg) else {
         return true; // unserializable frame — a bug; drop it, keep the socket
     };
+    // Log the outbound half of the backend↔agent exchange. Terminal frames
+    // (done/error) at info so the command-level round-trip is visible in the
+    // default log; the chattier intermediate progress at debug.
+    match msg.state.status {
+        OpStatus::Done | OpStatus::Error => tracing::info!(
+            job_id = %msg.job_id,
+            status = ?msg.state.status,
+            detail = msg.state.detail.as_deref().unwrap_or_default(),
+            "-> sending terminal result to backend"
+        ),
+        _ => tracing::debug!(
+            job_id = %msg.job_id,
+            status = ?msg.state.status,
+            phase = msg.state.phase.as_deref().unwrap_or_default(),
+            percent = msg.state.percent.unwrap_or_default(),
+            "-> sending progress to backend"
+        ),
+    }
     if write.send(Message::Text(text)).await.is_err() {
+        tracing::warn!(
+            job_id = %msg.job_id,
+            "socket write failed; parking frame for the next connection"
+        );
         *pending = Some(msg);
         return false;
     }
@@ -205,15 +227,22 @@ async fn connect_once(
     pending: &mut Option<OutboundProgress>,
 ) -> Result<ConnectionEnd> {
     let request = connect_request(config)?;
-    let (stream, _) = tokio_tungstenite::connect_async_tls_with_config(
+    let target = request.uri().to_string();
+    tracing::debug!(url = %target, "opening phone-home websocket");
+    let (stream, response) = tokio_tungstenite::connect_async_tls_with_config(
         request,
         None,
         false,
         Some(tls_connector()?),
     )
     .await
-    .context("connecting to backend")?;
-    tracing::info!(vm_id = %config.identity.vm_id, "connected to backend");
+    .with_context(|| format!("connecting to backend at {target}"))?;
+    tracing::info!(
+        url = %target,
+        vm_id = %config.identity.vm_id,
+        status = response.status().as_u16(),
+        "connected to backend"
+    );
 
     let (mut write, mut read) = stream.split();
 
@@ -254,6 +283,16 @@ async fn connect_once(
                         continue;
                     }
                 };
+
+                // Log the inbound half of the exchange (params omitted — they
+                // can carry secrets like passwords for a domain join).
+                tracing::info!(
+                    job_id = %cmd.job_id,
+                    command = %cmd.command,
+                    role = ?cmd.role,
+                    param_count = cmd.params.len(),
+                    "<- received command from backend"
+                );
 
                 let registry = Arc::clone(registry);
                 let shell = Arc::clone(shell);
@@ -308,7 +347,15 @@ pub async fn run_forever(
     registry: Arc<CommandRegistry>,
     shell: Arc<dyn PowerShellExecutor>,
 ) -> Result<()> {
-    connect_url(config)?; // fail fast on bad config, before the first attempt
+    // Fail fast on bad config, before the first attempt — and surface the
+    // resolved target so a wrong `backend.url` (or a proxy answering 404 for
+    // it) is diagnosable straight from the log.
+    let target = connect_url(config)?;
+    tracing::info!(
+        url = %target,
+        vm_id = %config.identity.vm_id,
+        "phone-home target resolved"
+    );
 
     // Outbound frames outlive any one connection: a command started on one
     // socket delivers its result through whichever socket is live when it
@@ -338,10 +385,11 @@ pub async fn run_forever(
                 continue;
             }
             Ok(ConnectionEnd::Normal) => {
-                tracing::warn!("backend closed the connection; reconnecting")
+                tracing::warn!(url = %target, "backend closed the connection; reconnecting")
             }
             Err(err) => tracing::warn!(
-                ?err,
+                url = %target,
+                error = format!("{err:#}"),
                 "phone-home connection failed; reconnecting"
             ),
         }

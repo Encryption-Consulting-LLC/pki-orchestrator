@@ -5,6 +5,7 @@
 use std::{ffi::OsString, sync::mpsc, time::Duration};
 
 use anyhow::{Context, Result};
+use tracing_subscriber::EnvFilter;
 use windows_service::{
     define_windows_service,
     service::{
@@ -143,6 +144,20 @@ fn init_file_logging() -> Result<()> {
     // Leaked deliberately: the guard must live for the process lifetime to
     // flush on drop, and this process only exits via the SCM stop path above.
     Box::leak(Box::new(guard));
-    tracing_subscriber::fmt().with_writer(non_blocking).init();
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        // A log FILE has no terminal to interpret colour codes, so ANSI escapes
+        // are just noise (`\x1b[2m…\x1b[0m`) littering every field when the file
+        // is opened in Notepad. Plain text only for the file sink.
+        .with_ansi(false)
+        // Honour RUST_LOG like the console path (`main.rs`) so the phone-home
+        // frame logging in `phonehome` can be dialled up to `debug` in the
+        // field without a rebuild; default `info` keeps the command-level
+        // to-and-fro visible.
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .init();
     Ok(())
 }
